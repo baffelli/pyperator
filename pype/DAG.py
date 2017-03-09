@@ -13,6 +13,19 @@ class Node:
         st = "{}".format(self.name)
         return st
 
+    def add_outgoing(self,node):
+        self._out.add(node)
+
+    def add_incoming(self, node):
+        self._in.add(node)
+
+    def remove_outgoing(self, node):
+        self._out.remove(node)
+
+    def remove_incoming(self, node):
+        self._in.remove(node)
+
+
     @property
     def outgoing(self):
         yield from self._out
@@ -27,35 +40,19 @@ class Node:
             return True
 
 
-def add_arc(arcs, node1, node2):
-    try:
-        arcs[node1].add(node2)
-    except KeyError:
-        arcs[node1] = set([node2])
-
-
-def remove_arc(arcs, node1, node2):
-    for k, v in arcs.items():
-        if k == node1 and node2 in v:
-            v.remove(node2)
-        arcs[k] = v
-    return arcs
-
 
 def find_path(dag, start, end, path=[]):
-    path = path + [start]
+    path  = path + [start]
+    yield start
     if start not in dag._nodes:
-        return None
+        raise ValueError('Node does not exist')
     if start == end:
-        return path
+        return
     for node in dag.adjacent(start):
-        print(path, node)
         if node in path:
             raise ValueError('Graph contains cycle')
         if node not in path:
-            newpath = find_path(dag, node, end, path=path)
-            if newpath: return newpath
-    return None
+            yield from  find_path(dag, node, end, path=path)
 
 
 def topological_sort(dag):
@@ -77,23 +74,31 @@ class DAG:
         self._nodes = set()
 
     def add_arc(self, node1, node2):
-        # if node1 in self._nodes and node2 in self._nodes:
         # Add nodes that are not in the node list
         [self._nodes.add(node) for node in [node1, node2] if not self.hasnode(node)]
-        if node1 not in self._nodes:
-            self._nodes.add(node1)
-        self._nodes.add(node2)
-        add_arc(self._arcs, node1, node2)
-        node1._out.add(node2)
-        node2._in.add(node1)
+        #If
+        try:
+            self._arcs[node1].add(node2)
+        except KeyError:
+            self._arcs[node1] = set([node2])
+        #Add incoming and outgoing to node
+        node1.add_outgoing(node2)
+        node2.add_incoming(node1)
+
+    def hasarc(self, node1, node2):
+        return node1 in self._arcs and node2 in self._arcs[node1]
+
 
     def hasnode(self, node):
         return node in self._nodes
 
     def remove_arc(self, node1, node2):
-        self._arcs = remove_arc(self._arcs, node1, node2)
-        self._nodes.node1._out.remove(node2)
-        node2._out.remove(node1)
+        #Remove arc from dict
+        if node1 in self._arcs and node2 in self._arcs[node1]:
+            self._arcs[node1].remove(node2)
+        #Remove connection from incoming and outgoing
+        node1.remove_outgoing(node2)
+        node2.remove_incoming(node1)
 
     def iternodes(self):
         return self._nodes.__iter__()
@@ -173,9 +178,7 @@ graph.add_arc(b, c)
 graph.add_arc(c, d)
 graph.add_arc(c, e)
 graph.add_arc(c, c)
-print(list(c.outgoing))
-topological_sort(graph)
-
-print(str(graph))
+# graph.remove_arc(c,c)
+print(list(find_path(graph, a,e)))
 with open('a.dot', 'w+') as of:
     of.write(graph.dot())
