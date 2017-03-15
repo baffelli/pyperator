@@ -8,6 +8,34 @@ def coroutine(func):
         return cr
     return start
 
+def process(fun):
+    def message_expander(message_list, **kwargs):
+        args=[message.data for message in message_list.items()]
+        ret = fun(*args, **kwargs)
+        return ret
+    return message_expander
+
+class message:
+    def __init__(self, content, originator):
+        self.data = content
+        self.originator = originator
+
+    def __repr__(self):
+        return "From: {}, data: {}".format(str(self.originator), self.data)
+
+class messageList(dict):
+
+    def originators(self):
+        return {r.originator for r in self if hasattr(r,'originator')}
+
+    def add(self, message):
+        if message:
+            super(messageList, self).__setitem__(message.originator,message)
+
+    def __repr__(self):
+        # return "".join([str(k) for k,v in self.items()])
+        strs = ["Originator : {r}, Data: {d}".format(r=k, d=v.data) for k,v in self.items()]
+        return "----\n".join(strs)
 
 
 class Node:
@@ -17,7 +45,7 @@ class Node:
         self._in = set()
         self._out = set()
         self.f = f
-        self.data = []
+        self.data = messageList()
 
     def __repr__(self):
         st = "{}".format(self.name)
@@ -40,22 +68,23 @@ class Node:
 
     @coroutine
     def __call__(self):
-        # ancestors = list(self.incoming)
         while True:
-            yielded = (yield)
-            self.data.append(yielded)
-            if len(self.data) == self.n_in and self.n_in>0:
-                data = self.data
-                self.data = []
+            received_message = (yield)
+            self.data.add(received_message)
+            #Check if all messages are received
+            if self.data.originators() == set(self.incoming):
+                data = self.data.copy()
+                self.data.clear()
             elif self.n_in ==0:
-                data = yielded
+                data = received_message
             else:
                 continue
-            print(data)
+            #When we have all messages, we compute something on them
             transfomed = self.f(data)
-            t1 = transfomed
+            #And then we send it to the descendent nodes
+            to_send = message(transfomed, self)
             for c in self.outgoing:
-                    c().send(t1)
+                    c().send(to_send)
 
     @property
     def n_in(self):
@@ -192,24 +221,31 @@ class DAG:
             """.format(nodes="\n".join(nodes_gen), edges="\n".join(arc_str))
         return _tw.dedent(graph_str)
 
-def default(x):
-    if x is None:
-        return [1]
-    else:
-        return x.append(1)
-
+#Two generators
 simple_gen = (i for i in range(40))
+reverse_gen = (i for i in range(40,1,-1))
+
+@process
+def sum_messages(x):
+    if x is None:
+        return 1
+    else:
+        return sum(x)
+
+
 
 #Simple network
 a = Node('a', lambda x: next(simple_gen))
-b = Node('b', lambda x: 7)
-c = Node('c', lambda x: sum(x))
-d = Node('d', lambda x: print('Received {}'.format(x)))
+b = Node('b', lambda x: next(reverse_gen))
+c = Node('c', sum_messages)
+d = Node('d', lambda x: print(x))
+spy = Node('spy', lambda x: print("I see {}".format(x)))
 graph = DAG()
 graph.add_arc(a, c)
 graph.add_arc(b, c)
 graph.add_arc(c, d)
-graph.add_arc(c, a)
+graph.add_arc(a,spy)
+graph.add_arc(b,spy)
 # graph.add_arc(b, c)
 # graph.add_arc(b, d)
 # d = b()
@@ -217,11 +253,12 @@ graph.add_arc(c, a)
 # f = c()
 with open('a.dot', 'w+') as of:
     of.write(graph.dot())
-a_g = a()
-b_g = b()
-next(b_g)
-next(a_g)
-for a in a_g:
+# a_g = a()
+# b_g = b()
+# next(b_g)
+# next(a_g)
+
+for a in zip(a(), b()):
     pass
 # for a,b in zip(a(),b()):
 #     pass
