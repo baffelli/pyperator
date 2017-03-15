@@ -55,6 +55,9 @@ class messageList(set):
         # if message:
         super(messageList, self).add(message)
 
+    def __getitem__(self, item):
+        super(messageList,self).remove()
+
     def __repr__(self):
         # return super(messageList, self).__repr__()
     #     # return "".join([str(k) for k,v in self.items()])
