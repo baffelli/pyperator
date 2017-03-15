@@ -10,6 +10,10 @@ class Node:
         self.f = f
         self.data = messageList()
         self.color = 'grey'
+        try:
+            self.chan = self.f()
+        except TypeError:
+            pass
 
     def __repr__(self):
         st = "{}".format(self.name)
@@ -50,13 +54,21 @@ class Node:
                 self.data.clear()
             else:
                 yield
-            transformed = self.f(data)
-            message_to_send = message(transformed, self)
-            self.successors().send(message_to_send)
+            #We either have a sink or a transformation. A sink has no outputs!
+            if self.n_out >0:
+                transformed = self.f(data)
+                message_to_send = message(transformed, self)
+                self.successors().send(message_to_send)
+            else:
+                self.chan.send(data)
 
     @property
     def n_in(self):
         return len(self._in)
+
+    @property
+    def n_out(self):
+        return len(self._out)
 
     @property
     def outgoing(self):
