@@ -106,15 +106,12 @@ class DAG:
         return out_str
 
     def dot(self):
-        nodes_gen = map(str, self.iternodes())
+        nodes_gen =(node.gv_node() for node in self.iternodes())
         arc_str = ("{} -> {}".format(a, b) for a, b in self.iterarcs())
         # edged_gen
         graph_str = """
             digraph DAG{{
-            graph[bgcolor=white, margin=0];
-            node[shape=box, style=rounded, fontname=sans, \
-                fontsize=10, penwidth=2];
-                edge[penwidth=2, color=grey];
+            graph[bgcolor=white, margin=0]
                 {nodes}
                 {edges}
             }}
@@ -126,39 +123,42 @@ class DAG:
         a = [el for el in self.iternodes() if not el.has_predecessor]
         #Execute them
         coros = [a() for a in a]
+        #Execution step counter
+        step_counter = 1
         while True:
                 [next(coro) for coro in coros]
-            # except StopIteration:
-            #     print('Workflow complete')
-
-
-#Two generators
-simple_gen = (i for i in range(40))
-reverse_gen = (2 for i in range(40))
-#A simple sum process
-@process
-def sum_messages(a=None, b=None):
-    return a+b
+                step_counter += 1
 
 
 
+# #Two generators
+# simple_gen = (i for i in range(40))
+# reverse_gen = (2 for i in range(40))
+# #A simple sum process
+# @process
+# def sum_messages(a=None, b=None):
+#     return a+b
+#
+#
+#
+#
+# #Simple network
+# a = Node('a', lambda x: next(simple_gen))
+# b = Node('b', lambda x: next(reverse_gen))
+# c = Node('c', sum_messages)
+# d = Node('d', lambda x: print(x))
+# graph = DAG()
+# graph.add_arc(a, c)
+# graph.add_arc(b, c)
+# graph.add_arc(c, d)
+# #Save
+# with open('a.dot', 'w+') as of:
+#     of.write(graph.dot())
+#
+# #Execute
+# graph()
 
-#Simple network
-a = Node('a', lambda x: next(simple_gen))
-b = Node('b', lambda x: next(reverse_gen))
-c = Node('c', sum_messages)
-d = Node('d', lambda x: print(x))
-graph = DAG()
-graph.add_arc(a, c)
-graph.add_arc(b, c)
-graph.add_arc(c, d)
-#Execute
-graph()
 
-
-
-with open('a.dot', 'w+') as of:
-    of.write(graph.dot())
 
 
 
