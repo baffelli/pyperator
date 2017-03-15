@@ -1,13 +1,23 @@
 import queue as _qu
 import textwrap as _tw
 
+def coroutine(func):
+    def start(*args,**kwargs):
+        cr = func(*args,**kwargs)
+        next(cr)
+        return cr
+    return start
+
+
 
 class Node:
-    def __init__(self, name):
+    def __init__(self, name, f):
         self.name = name
         self._data = None
         self._in = set()
         self._out = set()
+        self.f = f
+        self.data = []
 
     def __repr__(self):
         st = "{}".format(self.name)
@@ -25,6 +35,31 @@ class Node:
     def remove_incoming(self, node):
         self._in.remove(node)
 
+    def send(self, message):
+        yield message
+
+    @coroutine
+    def __call__(self):
+        # ancestors = list(self.incoming)
+        while True:
+            yielded = (yield)
+            self.data.append(yielded)
+            if len(self.data) == self.n_in and self.n_in>0:
+                data = self.data
+                self.data = []
+            elif self.n_in ==0:
+                data = yielded
+            else:
+                continue
+            print(data)
+            transfomed = self.f(data)
+            t1 = transfomed
+            for c in self.outgoing:
+                    c().send(t1)
+
+    @property
+    def n_in(self):
+        return len(self._in)
 
     @property
     def outgoing(self):
@@ -40,6 +75,8 @@ class Node:
             return True
 
 
+cycle_str = 'Graph contains cycle beteween {} and {}'
+
 
 def find_path(dag, start, end, path=[]):
     path  = path + [start]
@@ -50,7 +87,7 @@ def find_path(dag, start, end, path=[]):
         return
     for node in dag.adjacent(start):
         if node in path:
-            raise ValueError('Graph contains cycle')
+            raise ValueError(cycle_str.format(start, node))
         if node not in path:
             yield from  find_path(dag, node, end, path=path)
 
@@ -63,6 +100,7 @@ def topological_sort(dag):
     print(a)
     while not Q.empty():
         u = Q.get()
+        print(u)
         print(list(u.outgoing))
         T.append(u)
     print(T)
@@ -128,13 +166,10 @@ class DAG:
                     seen.add(node)
                     yield node
                 else:
-                    print('cycle')
-                    # raise ValueError('Detected cycle')
+                    # raise ValueError(cycle_str.format(start_node, node))
                     return
-
         for node in self.iternodes():
-            for visited_node in inner_dfs(self, node):
-                yield visited_node
+            yield from inner_dfs(self, node)
 
     def __repr__(self):
         arc_str = ("{} -> {}".format(a, b) for a, b in self.iterarcs())
@@ -157,28 +192,70 @@ class DAG:
             """.format(nodes="\n".join(nodes_gen), edges="\n".join(arc_str))
         return _tw.dedent(graph_str)
 
+def default(x):
+    if x is None:
+        return [1]
+    else:
+        return x.append(1)
 
-a = Node('a')
-b = Node('b')
-c = Node('c')
-d = Node('d')
-e = Node('e')
+simple_gen = (i for i in range(40))
 
+#Simple network
+a = Node('a', lambda x: next(simple_gen))
+b = Node('b', lambda x: 7)
+c = Node('c', lambda x: sum(x))
+d = Node('d', lambda x: print('Received {}'.format(x)))
 graph = DAG()
-
-# Add nodes
-# graph.add_node(a)
-# graph.add_node(b)
-# graph.add_node(c)
-# graph.add_node(d)
-# graph.add_node(e)
-# Connect them
-graph.add_arc(a, b)
+graph.add_arc(a, c)
 graph.add_arc(b, c)
 graph.add_arc(c, d)
-graph.add_arc(c, e)
-graph.add_arc(c, c)
-# graph.remove_arc(c,c)
-print(list(find_path(graph, a,e)))
+graph.add_arc(c, a)
+# graph.add_arc(b, c)
+# graph.add_arc(b, d)
+# d = b()
+# e = a()
+# f = c()
 with open('a.dot', 'w+') as of:
     of.write(graph.dot())
+a_g = a()
+b_g = b()
+next(b_g)
+next(a_g)
+for a in a_g:
+    pass
+# for a,b in zip(a(),b()):
+#     pass
+# e = a()
+# e.send(None)
+# d = b()
+# e = a()
+# f = c()
+# print(d)
+# e.send(None)
+# next(d)
+# next(d)
+# next(d)
+
+# c = Node('c')
+# d = Node('d')
+# e = Node('e')
+#
+# graph = DAG()
+#
+# # Add nodes
+# # graph.add_node(a)
+# # graph.add_node(b)
+# # graph.add_node(c)
+# # graph.add_node(d)
+# # graph.add_node(e)
+# # Connect them
+# graph.add_arc(a, b)
+# graph.add_arc(b, c)
+# graph.add_arc(c, d)
+# graph.add_arc(c, e)
+# # graph.add_arc(c, a)
+# # graph.remove_arc(c,c)
+# # print(list(find_path(graph, a,e)))
+# print(list(topological_sort(graph)))
+# with open('a.dot', 'w+') as of:
+#     of.write(graph.dot())
