@@ -120,14 +120,14 @@ class DAG:
 
     def  __call__(self):
         #Find nodes with no predecessors
-        a = [el for el in self.iternodes() if not el.has_predecessor]
+        a = [el for el in self.iternodes() if not el.has_predecessor and el.n_out > 0]
         #Execute them
         coros = [a() for a in a]
         #Execution step counter
         step_counter = 1
         while True:
-                [next(coro) for coro in coros]
-                step_counter += 1
+            [next(coro) for coro in coros]
+        step_counter += 1
 
 
 
