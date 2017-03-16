@@ -45,12 +45,16 @@ def push(gen):
 
 class channel(object):
 
-    def __init__(self, name='chan', size=1):
+    def __init__(self, name='chan', size=1, source=None, dest=None):
         self.name = name
         self._chan = queue.deque(maxlen=size)
+        self.ends = {source, dest}
 
     def full(self):
         return len(self._chan) == self._chan.maxlen
+
+    def connection_exists(self, source, dest):
+        return {source,dest} == self.ends
 
     @asco
     def send(self, message):
