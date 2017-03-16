@@ -1,12 +1,13 @@
-from pype.utils import coroutine, message, messageList
+from pype.utils import coroutine, message, messageList, asco, channel
 
 
 class Node:
     def __init__(self, name, f):
         self.name = name
         self._data = None
-        self._in = set()
-        self._out = set()
+        self._in = {}
+        self._out = {}
+        self._channels = []
         self.f = f
         self.data = messageList()
         self.color = 'grey'
@@ -25,10 +26,24 @@ class Node:
         return st
 
     def add_outgoing(self, node):
-        self._out.add(node)
+        if not node in  self._out:
+
+            # First open channel
+            current_chan = channel(name='c', source=self, dest=node)
+            #Create entry
+            node_entry = {node:current_chan}
+            self._channels.append(current_chan)
+            self._out.update(node_entry)
 
     def add_incoming(self, node):
-        self._in.add(node)
+        #Find channels
+        open = [c.connection_exists(self, node) for c in self._channels]
+        if not node in self._in:
+            current_chan = channel(name='c', source=node, dest=self)
+            #Create entry
+            node_entry = {node:current_chan}
+            self._channels.append(current_chan)
+            self._in.update(node_entry)
 
     def remove_outgoing(self, node):
         self._out.remove(node)
@@ -36,12 +51,15 @@ class Node:
     def remove_incoming(self, node):
         self._in.remove(node)
 
+
+
     @coroutine
     def successors(self):
         while True:
             received_data = (yield)
             for c in self.outgoing:
                 c().send(received_data)
+
 
     @coroutine
     def __call__(self):
