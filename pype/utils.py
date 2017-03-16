@@ -1,3 +1,7 @@
+import queue
+from asyncio import coroutine as asco
+
+
 def coroutine(func):
     def start(*args,**kwargs):
         cr = func(*args,**kwargs)
@@ -13,6 +17,7 @@ def process(fun):
         ret = fun(**kwargs)
         return ret
     return message_expander
+
 
 def sink(fun):
     def message_expander(message_list, **kwargs):
@@ -37,6 +42,31 @@ def push(gen):
 
 
 
+
+class channel(object):
+
+    def __init__(self, name='chan', size=1):
+        self.name = name
+        self._chan = queue.deque(maxlen=size)
+
+    def full(self):
+        return len(self._chan) == self._chan.maxlen
+
+    @asco
+    def send(self, message):
+        print(self._chan)
+        yield
+        self._chan.append(message)
+
+    @asco
+    def receive(self):
+        yield
+        return self._chan.popleft()
+
+
+
+
+
 class message:
     def __init__(self, content, originator):
         self.data = content
@@ -55,8 +85,15 @@ class messageList(set):
         # if message:
         super(messageList, self).add(message)
 
-    def __getitem__(self, item):
-        super(messageList,self).remove()
+    def asdict(self):
+        return {v.originator: v.data for v in self}
+
+    def clear(self, *args, **kwargs):
+        super(messageList, self).clear()
+
+    def getfrom(self, originator):
+        message_dict = self.asdict()
+        return message_dict.get(originator).data
 
     def __repr__(self):
         # return super(messageList, self).__repr__()
