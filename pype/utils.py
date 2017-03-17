@@ -1,6 +1,4 @@
-import queue
-from asyncio import coroutine as asco
-
+from asyncio import coroutine as asco, sleep, Queue
 
 def coroutine(func):
     def start(*args,**kwargs):
@@ -47,7 +45,7 @@ class channel(object):
 
     def __init__(self, name='chan', size=1, source=None, dest=None):
         self.name = name
-        self._chan = queue.deque(maxlen=size)
+        self._chan = Queue(maxsize=size)
         self.ends = {source, dest}
 
     def full(self):
@@ -56,16 +54,15 @@ class channel(object):
     def connection_exists(self, source, dest):
         return {source,dest} == self.ends
 
-    @asco
-    def send(self, message):
-        print(self._chan)
-        yield
-        self._chan.append(message)
+    async def send(self, message):
+        await self._chan.put(message)
 
-    @asco
-    def receive(self):
-        yield
-        return self._chan.popleft()
+    async def receive(self):
+        res = await self._chan.get()
+        return res
+
+    def __repr__(self):
+        return "{type}: {} <-> {}, {h}".format(*map(str,self.ends), type=type(self), h=hash(self))
 
 
 

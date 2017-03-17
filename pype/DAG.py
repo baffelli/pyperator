@@ -1,5 +1,6 @@
 import queue as _qu
 import textwrap as _tw
+import asyncio
 
 from pype.nodes import Node
 from pype.utils import process
@@ -98,6 +99,7 @@ class DAG:
                     # raise ValueError(cycle_str.format(start_node, node))
                     return
         for node in self.iternodes():
+            print(node)
             yield from inner_dfs(self, node)
 
     def __repr__(self):
@@ -119,15 +121,20 @@ class DAG:
         return _tw.dedent(graph_str)
 
     def  __call__(self):
+        loop = asyncio.get_event_loop()
         #Find nodes with no predecessors
         a = [el for el in self.iternodes() if not el.has_predecessor and el.n_out > 0]
-        #Execute them
-        coros = [a() for a in a]
-        #Execution step counter
-        step_counter = 1
+        print(a)
+        # #Execute them
+
         while True:
-            [next(coro) for coro in coros]
-        step_counter += 1
+            coros = [c() for c in a]
+            loop.run_until_complete(asyncio.gather(*coros))
+        # while True:
+        #     try:
+        #
+        #     except StopIteration:
+        #         print('Computation completed')
 
 
 
