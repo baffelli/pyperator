@@ -9,7 +9,7 @@ class Node:
         self._out = set()
         self.channel = channel(name='c', owner=self, dest=None)
         self.f = f
-        self.data = set()
+        self.data = []
         self.color = 'grey'
         try:
             self.chan = self.f()
@@ -51,12 +51,8 @@ class Node:
             for incoming_node  in self.incoming:
                 print("{}, receiving on {}".format(self.name, incoming_node))
                 current_data = await self.channel.receive()
-                old_name = self.name
-                data = (old_name, current_data)
-                self.data.add(data)
+                self.data.append(current_data)
                 return
-                # print("{}, received {}".format(self.name, current_data))
-                # incoming_node().send(None)
         return data
 
     async def send_downstream(self, data):
@@ -80,9 +76,11 @@ class Node:
             print('{} processing data '.format(self.name))
             if len(self.data) == self.n_in:
                 transformed = await self.f(self.data)
-                self.data.clear()
+                transformed = (self.name, transformed)
+
                 print("result {}".format(transformed))
                 await self.send_downstream(transformed)
+                self.data = []
 
 
 
