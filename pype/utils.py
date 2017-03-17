@@ -46,7 +46,7 @@ def push(gen):
 
 class channel(object):
 
-    def __init__(self, name='chan', size=1, source=None, dest=None):
+    def __init__(self, name='chan', size=100, source=None, dest=None):
         self.name = name
         self._chan = Queue(maxsize=size)
         self.ends = {source, dest}
@@ -59,6 +59,13 @@ class channel(object):
 
     async def send(self, message):
         await self._chan.put(message)
+
+    def receive_sync(self):
+        try:
+            data = self._chan.get_nowait()
+        except:
+            data = None
+        return data
 
     async def receive(self):
         data = await self._chan.get()

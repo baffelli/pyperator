@@ -9,7 +9,7 @@ class Node:
         self._out = {}
         self._channels = []
         self.f = f
-        self.data = messageList()
+        self.data = []
         self.color = 'grey'
         try:
             self.chan = self.f()
@@ -67,39 +67,41 @@ class Node:
         if self.n_in > 0:
             for (incoming_node, incoming_chan) in self.incoming:
                 print("{}, receiving on {}".format(self.name, incoming_chan))
-                current_data = await incoming_chan.receive()
+                current_data =  incoming_chan.receive_sync()
+                print(incoming_chan._chan)
                 data.append(current_data)
                 print("{}, received {}".format(self.name, current_data))
-                # await incoming_node()
                 # incoming_node().send(None)
             print('Done receiving')
         return data
 
     async def send_downstream(self, data):
-
         if self.n_out > 0:
             for (outgoing_node, outgoing_chan) in self.outgoing:
                 print("{}, sending {} to {}".format(self.name, data, outgoing_node))
                 #send data to the node
                 await outgoing_chan.send(data)
-                await outgoing_node()
                 print('{} sent data downstream'.format(self.name))
-                return
+                await outgoing_node()
+
         return
 
 
 
     async def __call__(self, *args, **kwargs):
-        print('executing {}'.format(self.name))
-        if self.n_in > 0:
-            data = await self.get_upstream()
-            print('{} processing data '.format(self.name))
-        else:
-            data = None
-        transformed = await self.f(data)
-        print('proessed')
-        await self.send_downstream(transformed)
-        return None
+
+            print('executing {}'.format(self.name))
+            if self.n_in > 0:
+                data = await self.get_upstream()
+                print('{} processing data '.format(self.name))
+            else:
+                data = None
+            transformed = await self.f(data)
+            await self.send_downstream(transformed)
+            # self.data.append(transformed)
+            # print(self.data)
+            # print('proessed')
+
         # return data
         # await self.send_downstream(transformed)
 
