@@ -46,10 +46,10 @@ def push(gen):
 
 class channel(object):
 
-    def __init__(self, name='chan', size=100, source=None, dest=None):
+    def __init__(self, name='chan', size=100, owner=None, dest=[]):
         self.name = name
         self._chan = Queue(maxsize=size)
-        self.ends = {source, dest}
+        self.ends = {owner, *[dest]}
 
     def full(self):
         return len(self._chan) == self._chan.maxlen
@@ -69,6 +69,7 @@ class channel(object):
 
     async def receive(self):
         data = await self._chan.get()
+        self._chan.task_done()
         return data
 
     def __repr__(self):

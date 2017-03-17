@@ -5,11 +5,11 @@ class Node:
     def __init__(self, name, f=lambda x: None):
         self.name = name
         self._data = None
-        self._in = {}
-        self._out = {}
-        self._channels = []
+        self._in = set()
+        self._out = set()
+        self.channel = channel(name='c', owner=self, dest=None)
         self.f = f
-        self.data = []
+        self.data = set()
         self.color = 'grey'
         try:
             self.chan = self.f()
@@ -26,28 +26,12 @@ class Node:
 
     def add_outgoing(self, node):
         if not node in self._out:
-            # First open channel
-            current_chan = channel(name='c', source=self, dest=node)
-            # Create entry
-            node_entry = {node: current_chan}
-            self._channels.append(current_chan)
-            self._out.update(node_entry)
+            self._out.add(node)
 
     def add_incoming(self, node):
         # Find channels
-        open = self.find_channel(node)
         if not node in self._in:
-            #If the channel is not open, open it
-            if not open:
-                current_chan = channel(name='c', source=node, dest=self)
-
-            else:
-                current_chan = open
-            # Create entry
-            node_entry = {node: current_chan}
-            self._in.update(node_entry)
-            #Add channel
-            self._channels.append(current_chan)
+            self._in.add(node)
 
     def remove_outgoing(self, node):
         self._out.pop(node)
@@ -63,47 +47,43 @@ class Node:
 
     async def get_upstream(self):
         data = []
-        print(list(self.incoming))
         if self.n_in > 0:
-            for (incoming_node, incoming_chan) in self.incoming:
-                print("{}, receiving on {}".format(self.name, incoming_chan))
-                current_data =  incoming_chan.receive_sync()
-                print(incoming_chan._chan)
-                data.append(current_data)
-                print("{}, received {}".format(self.name, current_data))
+            for incoming_node  in self.incoming:
+                print("{}, receiving on {}".format(self.name, incoming_node))
+                current_data = await self.channel.receive()
+                old_name = self.name
+                data = (old_name, current_data)
+                self.data.add(data)
+                return
+                # print("{}, received {}".format(self.name, current_data))
                 # incoming_node().send(None)
-            print('Done receiving')
         return data
 
     async def send_downstream(self, data):
         if self.n_out > 0:
-            for (outgoing_node, outgoing_chan) in self.outgoing:
+            for outgoing_node in self.outgoing:
                 print("{}, sending {} to {}".format(self.name, data, outgoing_node))
                 #send data to the node
-                await outgoing_chan.send(data)
+                await outgoing_node.channel.send(data)
                 print('{} sent data downstream'.format(self.name))
                 await outgoing_node()
-
         return
 
 
 
     async def __call__(self, *args, **kwargs):
-
             print('executing {}'.format(self.name))
             if self.n_in > 0:
                 data = await self.get_upstream()
-                print('{} processing data '.format(self.name))
             else:
                 data = None
-            transformed = await self.f(data)
-            await self.send_downstream(transformed)
-            # self.data.append(transformed)
-            # print(self.data)
-            # print('proessed')
+            print('{} processing data '.format(self.name))
+            if len(self.data) == self.n_in:
+                transformed = await self.f(self.data)
+                self.data.clear()
+                print("result {}".format(transformed))
+                await self.send_downstream(transformed)
 
-        # return data
-        # await self.send_downstream(transformed)
 
 
 
@@ -124,11 +104,11 @@ class Node:
 
     @property
     def outgoing(self):
-        yield from self._out.items()
+        yield from self._out
 
     @property
     def incoming(self):
-        yield from self._in.items()
+        yield from self._in
 
     @property
     def has_predecessor(self):
