@@ -124,12 +124,14 @@ class DAG:
         loop = asyncio.get_event_loop()
         #Find nodes with no predecessors
         a = [el for el in self.iternodes() if not el.has_predecessor and el.n_out > 0]
-        print(a)
         # #Execute them
 
-        while True:
-            coros = [c() for c in a]
-            loop.run_until_complete(asyncio.gather(*coros))
+        coros = [c() for c in a]
+        coros[0].send(None)
+        coros[1].send(None)
+        coros[0].send(None)
+
+
         # while True:
         #     try:
         #

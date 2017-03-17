@@ -63,54 +63,49 @@ class Node:
 
     async def get_upstream(self):
         data = []
-        # futures = [incoming_chan.receive() for incoming_node, incoming_chan in self.incoming]
-        # if futures:
-        #     completed, pending = await asyncio.wait(futures)
-        #     data = [w.result() for w in completed]
-        # print(data)
-        # # awaitables = []
         print(list(self.incoming))
-        for (incoming_node, incoming_chan) in self.incoming:
-            print("{}, receiving on {}".format(self.name, incoming_chan))
-            current_data = await incoming_chan.receive()
-            data.append(current_data)
-            print("{}, received {}".format(self.name, current_data))
-        print('Done receiving')
+        if self.n_in > 0:
+            for (incoming_node, incoming_chan) in self.incoming:
+                print("{}, receiving on {}".format(self.name, incoming_chan))
+                current_data = await incoming_chan.receive()
+                data.append(current_data)
+                print("{}, received {}".format(self.name, current_data))
+                # await incoming_node()
+                # incoming_node().send(None)
+            print('Done receiving')
         return data
 
     async def send_downstream(self, data):
-        # futures = [outgoing_chan.send(data) for outgoing_node, outgoing_chan in self.outgoing]
-        # if futures:
-        #     completed, pending = await asyncio.wait(futures)
-        #     data = [w.result() for w in completed]
-        for (outgoing_node, outgoing_chan) in self.outgoing:
-            print("{}, sending {} to {}".format(self.name, data, outgoing_node))
-            #send data to the node
-            await outgoing_chan.send(data)
-            await outgoing_node()
 
-
-
-        return 'success'
+        if self.n_out > 0:
+            for (outgoing_node, outgoing_chan) in self.outgoing:
+                print("{}, sending {} to {}".format(self.name, data, outgoing_node))
+                #send data to the node
+                await outgoing_chan.send(data)
+                await outgoing_node()
+                print('{} sent data downstream'.format(self.name))
+                return
+        return
 
 
 
     async def __call__(self, *args, **kwargs):
         print('executing {}'.format(self.name))
-        data = await self.get_upstream()
-        print('{} processing data '.format(self.name))
+        if self.n_in > 0:
+            data = await self.get_upstream()
+            print('{} processing data '.format(self.name))
+        else:
+            data = None
         transformed = await self.f(data)
-        sent= await self.send_downstream(transformed)
-        print('{} sent data downstream {}'.format(self.name, sent))
-        #Call all downstream tasks
-        # futures = [outgoing() for outgoing, chan in self.outgoing]
-        # if futures:
-        #     completed, pending = await asyncio.wait(futures)
-        # for outgoing, chan in self.outgoing:
-        #     print('running {}'.format(outgoing))
-        #     await outgoing()
+        print('proessed')
+        await self.send_downstream(transformed)
+        return None
+        # return data
+        # await self.send_downstream(transformed)
 
-        # return
+
+
+
 
 
 

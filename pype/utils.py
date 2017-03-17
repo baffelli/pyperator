@@ -1,4 +1,7 @@
-from asyncio import coroutine as asco, sleep, Queue
+from asyncio import coroutine as asco, sleep, Queue, wait
+
+from concurrent.futures import FIRST_COMPLETED
+
 
 def coroutine(func):
     def start(*args,**kwargs):
@@ -58,8 +61,8 @@ class channel(object):
         await self._chan.put(message)
 
     async def receive(self):
-        res = await self._chan.get()
-        return res
+        data = await self._chan.get()
+        return data
 
     def __repr__(self):
         return "{type}: {} <-> {}, {h}".format(*map(str,self.ends), type=type(self), h=hash(self))
