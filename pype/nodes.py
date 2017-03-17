@@ -75,7 +75,11 @@ class Node:
                 data = None
             print('{} processing data '.format(self.name))
             if len(self.data) == self.n_in:
-                transformed = await self.f(self.data)
+                if self.n_in ==0:
+                    transformed = self.f(data)
+                else:
+                    transformed = await self.f(self.data)
+
                 transformed = (self.name, transformed)
 
                 print("result {}".format(transformed))
