@@ -1,15 +1,12 @@
+import asyncio
 import queue as _qu
 import textwrap as _tw
-import asyncio
-
-from pype.nodes import Node
-from pype.utils import process
 
 cycle_str = 'Graph contains cycle beteween {} and {}'
 
 
 def find_path(dag, start, end, path=[]):
-    path  = path + [start]
+    path = path + [start]
     yield start
     if start not in dag._nodes:
         raise ValueError('Node does not exist')
@@ -36,51 +33,60 @@ def topological_sort(dag):
     print(T)
 
 
-class DAG:
+class Connection:
+    def __init__(self, source, dest, outport, inport):
+        self.source = source
+        self.dest = dest
+        self.outport = outport
+        self.inport = inport
+
+    def __repr__(self):
+        "{source} -> {dest} [label='{inport} -> {outport}']".format(source=self.source, dest=self.dest,
+                                                                    inport=self.outport, outport=self.outport)
+
+    def __eq__(self, other):
+        return (
+        self.source == other.source and self.dest == other.dest and
+        self.inport == other.outport and self.outport == other.outport)
+
+    def __hash__(self):
+        return (self.source, self.dest, self.inport, self.outport).__hash__()
+
+
+
+class Multigraph:
     def __init__(self):
-        self._arcs = {}
+        self._arcs = set()
         self._nodes = set()
 
-    def add_arc(self, node1, node2):
+    def connect(self, node1, node2, outport, inport):
         # Add nodes that are not in the node list
         [self._nodes.add(node) for node in [node1, node2] if not self.hasnode(node)]
-        #If
-        try:
-            self._arcs[node1].add(node2)
-        except KeyError:
-            self._arcs[node1] = set([node2])
-        #Add incoming and outgoing to node
-        node1.add_outgoing(node2)
-        node2.add_incoming(node1)
+        c = Connection(node1, node2, outport, inport)
+        self._arcs.add(c)
+        node1.connect(node2, outport, inport)
 
-    def hasarc(self, node1, node2):
-        return node1 in self._arcs and node2 in self._arcs[node1]
-
+    def hasarc(self, node1, node2, outport, inport):
+        return node1 in self._arcs and {node2: (outport, inport)} in self._arcs[node1]
 
     def hasnode(self, node):
         return node in self._nodes
 
-    def remove_arc(self, node1, node2):
-        #Remove arc from dict
-        if node1 in self._arcs and node2 in self._arcs[node1]:
-            self._arcs[node1].remove(node2)
-        #Remove connection from incoming and outgoing
-        node1.remove_outgoing(node2)
-        node2.remove_incoming(node1)
+    def disconnect(self, node1, node2):
+        # TODO implement it
+        pass
 
     def iternodes(self):
         return self._nodes.__iter__()
+
+    def iterarcs(self):
+            yield from self._arcs
 
     def adjacent(self, node):
         if node in self._arcs:
             yield from self._arcs[node]
         else:
             return
-
-    def iterarcs(self):
-        for node in self.iternodes():
-            for adjacent_node in self.adjacent(node):
-                yield (node, adjacent_node)
 
     def dfs(self):
         """
@@ -98,6 +104,7 @@ class DAG:
                 else:
                     # raise ValueError(cycle_str.format(start_node, node))
                     return
+
         for node in self.iternodes():
             print(node)
             yield from inner_dfs(self, node)
@@ -108,8 +115,12 @@ class DAG:
         return out_str
 
     def dot(self):
-        nodes_gen =(node.gv_node() for node in self.iternodes())
-        arc_str = ("{} -> {}".format(a, b) for a, b in self.iterarcs())
+        nodes_gen = (node.gv_node() for node in self.iternodes())
+        arc_str = (
+            "{source} -> {dest} [label=\"{inport} -> {outport}\"]".format(source=connection.source, dest=connection.dest,
+                                                                        inport=connection.inport,
+                                                                        outport=connection.outport) for
+            connection in self.iterarcs())
         # edged_gen
         graph_str = """
             digraph DAG{{
@@ -120,9 +131,9 @@ class DAG:
             """.format(nodes="\n".join(nodes_gen), edges="\n".join(arc_str))
         return _tw.dedent(graph_str)
 
-    def  __call__(self):
+    def __call__(self):
         loop = asyncio.get_event_loop()
-        #Find nodes with no predecessors
+        # Find nodes with no predecessors
         a = [el for el in self.iternodes() if not el.has_predecessor and el.n_out > 0]
         # #Execute them
 
@@ -130,11 +141,9 @@ class DAG:
         while True:
             coros = [c() for c in a]
             loop.run_until_complete(asyncio.gather(*coros))
-        #
-        #     except StopIteration:
-        #         print('Computation completed')
-
-
+            #
+            #     except StopIteration:
+            #         print('Computation completed')
 
 # #Two generators
 # simple_gen = (i for i in range(40))
@@ -162,8 +171,3 @@ class DAG:
 #
 # #Execute
 # graph()
-
-
-
-
-
