@@ -1,20 +1,89 @@
 from pype.utils import messageList, channel
 import asyncio
 
+
+
+
+class Port:
+
+    def __init__(self, name, size=1):
+        self.name = name
+        self._queue = asyncio.Queue(size)
+
+    async def send(self, data):
+        await self._queue.put(data)
+
+    async def receive(self):
+        data = self._queue.get()
+        return data
+
+    def connect(self, other):
+        self._queue = other._queue
+
+
+class Component:
+    def __init__(self, name, f=lambda x: None, inputs=[], outputs=[]):
+        self.name = name
+        #Input and output ports
+        self._inports = {}
+        self._outports = {}
+        #Function of the node
+        self._f = f
+        #initalize ports
+        for inport in inputs:
+            self._inports.update({inport, Port(inport)})
+        for outport in outputs:
+            self._outports.update({outport, Port(outport)})
+
+    def __repr__(self):
+        st = "{}".format(self.name)
+        return st
+
+    def gv_node(self):
+        st = "{name} [fillcolor={c}, label=\"{name}\", style=filled]".format(c=self.color, name=str(self))
+        return st
+
+
+    def connect(self, other, outport, inport):
+        """
+        Connection protocol:
+        output port is always connect to input port of other node
+        """
+        #Check if the given port exists in this component
+        output_ports = [current_port for outport_name, current_port, in self.outports if outport_name == outport]
+        #Check if the given inport exists in the other component
+        input_ports = [inport for current_port, inport_name in other.inports if inport_name == inport]
+        if output_ports:
+            if input_ports:
+                output_ports[0].connect(input_ports)
+
+
+
+
+        @property
+        def outports(self):
+            yield from self._outports.items()
+
+        @property
+        def inports(self):
+            yield from self._inports.items()
+
+
 class Node:
     def __init__(self, name, f=lambda x: None):
+        #Each node has a name
         self.name = name
-        self._data = None
-        self._in = set()
-        self._out = set()
-        self.channel = channel(name='c', owner=self, dest=None)
+        #Nodes are stored as dicts
+        self._in = {}
+        self._out = {}
+        #This is the function that the node will execute
         self.f = f
         self.data = []
         self.color = 'grey'
-        try:
-            self.chan = self.f()
-        except TypeError:
-            pass
+
+
+
+    def connect(self, other):
 
     def __repr__(self):
         st = "{}".format(self.name)
