@@ -1,4 +1,4 @@
-from pype.utils import messageList, channel
+from pyperator.utils import messageList, channel
 import asyncio
 
 
@@ -29,18 +29,22 @@ class Component:
         self._outports = {}
         #Function of the node
         self._f = f
+        self.color = 'grey'
         #initalize ports
         for inport in inputs:
-            self._inports.update({inport, Port(inport)})
+            self._inports.update({inport: Port(inport)})
         for outport in outputs:
-            self._outports.update({outport, Port(outport)})
+            self._outports.update({outport: Port(outport)})
 
     def __repr__(self):
         st = "{}".format(self.name)
         return st
 
     def gv_node(self):
-        st = "{name} [fillcolor={c}, label=\"{name}\", style=filled]".format(c=self.color, name=str(self))
+        table_header = """<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD BORDER="0"><TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">"""
+        st = """
+                node[shape=record]
+                {name} [fillcolor={c}, label=\"{name}\", style=filled]""".format(c=self.color, name=str(self))
         return st
 
 
@@ -58,15 +62,13 @@ class Component:
                 output_ports[0].connect(input_ports)
 
 
+    @property
+    def outports(self):
+        yield from self._outports.items()
 
-
-        @property
-        def outports(self):
-            yield from self._outports.items()
-
-        @property
-        def inports(self):
-            yield from self._inports.items()
+    @property
+    def inports(self):
+        yield from self._inports.items()
 
 
 class Node:
@@ -84,6 +86,7 @@ class Node:
 
 
     def connect(self, other):
+        pass
 
     def __repr__(self):
         st = "{}".format(self.name)
