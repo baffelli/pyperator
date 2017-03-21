@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import coroutine as asco, sleep, Queue, wait
 
 from concurrent.futures import FIRST_COMPLETED
@@ -113,3 +114,47 @@ class messageList(set):
         strs = ["Originator : {r}, Data: {d}".format(r=v.originator, d=v.data) for v in self]
     #     print(strs)
         return "".join(strs)
+
+
+class Connection:
+    def __init__(self, source, dest, outport, inport):
+        self.source = source
+        self.dest = dest
+        self.outport = outport
+        self.inport = inport
+        self._qu = asyncio.Queue()
+
+    async def send(self, data):
+        await self._qu.put(data)
+
+    async def receive(self):
+        data = await self._qu.get()
+        return data
+
+    def __repr__(self):
+        return "{source}:{outport}-> {dest}:{inport}".format(source=self.source, dest=self.dest,
+                                                                    inport=self.inport, outport=self.outport)
+
+    def __eq__(self, other):
+        return (
+        self.source == other.source and self.dest == other.dest and
+        self.inport == other.outport and self.outport == other.outport)
+
+    def __hash__(self):
+        return (self.source, self.dest, self.inport, self.outport).__hash__()
+
+
+class Port:
+    def __init__(self, name, size=1):
+        self.name = name
+        self._connection = None
+
+    async def send(self, data):
+        await self._connection.send(data)
+
+    async def receive(self):
+        data = await self._connection.receive()
+        return data
+
+    def connect(self, C):
+        self._connection = C
