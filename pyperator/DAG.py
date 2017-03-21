@@ -2,6 +2,8 @@ import asyncio
 import queue as _qu
 import textwrap as _tw
 
+from pyperator.utils import Connection
+
 cycle_str = 'Graph contains cycle beteween {} and {}'
 
 
@@ -33,27 +35,6 @@ def topological_sort(dag):
     print(T)
 
 
-class Connection:
-    def __init__(self, source, dest, outport, inport):
-        self.source = source
-        self.dest = dest
-        self.outport = outport
-        self.inport = inport
-
-    def __repr__(self):
-        "{source} -> {dest} [label='{inport} -> {outport}']".format(source=self.source, dest=self.dest,
-                                                                    inport=self.outport, outport=self.outport)
-
-    def __eq__(self, other):
-        return (
-        self.source == other.source and self.dest == other.dest and
-        self.inport == other.outport and self.outport == other.outport)
-
-    def __hash__(self):
-        return (self.source, self.dest, self.inport, self.outport).__hash__()
-
-
-
 class Multigraph:
     def __init__(self):
         self._arcs = set()
@@ -62,9 +43,8 @@ class Multigraph:
     def connect(self, node1, node2, outport, inport):
         # Add nodes that are not in the node list
         [self._nodes.add(node) for node in [node1, node2] if not self.hasnode(node)]
-        c = Connection(node1, node2, outport, inport)
+        c = node1.connect(node2, outport, inport)
         self._arcs.add(c)
-        node1.connect(node2, outport, inport)
 
     def hasarc(self, node1, node2, outport, inport):
         return node1 in self._arcs and {node2: (outport, inport)} in self._arcs[node1]
@@ -117,7 +97,7 @@ class Multigraph:
     def dot(self):
         nodes_gen = (node.gv_node() for node in self.iternodes())
         arc_str = (
-            "{source} -> {dest} [label=\"{inport} -> {outport}\"]".format(source=connection.source, dest=connection.dest,
+            "{source}:{outport} -> {dest}:{inport}".format(source=connection.source, dest=connection.dest,
                                                                         inport=connection.inport,
                                                                         outport=connection.outport) for
             connection in self.iterarcs())
@@ -128,13 +108,13 @@ class Multigraph:
                 {nodes}
                 {edges}
             }}
-            """.format(nodes="\n".join(nodes_gen), edges="\n".join(arc_str))
+            """.format(nodes=";\n".join(nodes_gen), edges="\n".join(arc_str))
         return _tw.dedent(graph_str)
 
     def __call__(self):
         loop = asyncio.get_event_loop()
         # Find nodes with no predecessors
-        a = [el for el in self.iternodes() if not el.has_predecessor and el.n_out > 0]
+        a = [el for el in self.iternodes()]
         # #Execute them
 
 
