@@ -19,4 +19,12 @@ class GeneratorSource(Component):
 
 
 
-class GeneratorZipper(Component):
+class GeneratorProductSource(Component):
+    """
+    This is a component that returns
+    the product of the given generators
+    """
+
+
+class Sink(Component):
+    pass

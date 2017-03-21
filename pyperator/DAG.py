@@ -1,6 +1,9 @@
 import asyncio
 import queue as _qu
 import textwrap as _tw
+from aiohttp import web
+# from .gui import create_gui
+
 
 from pyperator.utils import Connection
 
@@ -39,6 +42,8 @@ class Multigraph:
     def __init__(self):
         self._arcs = set()
         self._nodes = set()
+        #Create gui
+        self.dot_waiter = self.dot_coro()
 
     def connect(self, node1, node2, outport, inport):
         # Add nodes that are not in the node list
@@ -111,50 +116,39 @@ class Multigraph:
             """.format(nodes=";\n".join(nodes_gen), edges="\n".join(arc_str))
         return _tw.dedent(graph_str)
 
-    async def prime(self):
+    async def dot_coro(self):
+        nodes = []
+        future_nodes = [node._active.get() for node in self.iternodes()]
+        completed, pending = await asyncio.wait(future_nodes,return_when=asyncio.FIRST_COMPLETED)
+        print(completed)
         for node in self.iternodes():
-            for inbound_name, inbound in node.inports:
-                await inbound._connection.send(None)
+            print(node.color)
+            dot =await node.dot()
+            nodes.append(dot)
+        arc_str = (
+            "{source}:{outport} -> {dest}:{inport}".format(source=connection.source, dest=connection.dest,
+                                                                        inport=connection.inport,
+                                                                        outport=connection.outport) for
+            connection in self.iterarcs())
+        # edged_gen
+        graph_str = """
+            digraph DAG{{
+            graph[bgcolor=white, margin=0]
+                {nodes}
+                {edges}
+            }}
+            """.format(nodes=";\n".join(nodes), edges="\n".join(arc_str))
+        print(graph_str)
+        return _tw.dedent(graph_str)
+
+
+
 
     def __call__(self):
         loop = asyncio.get_event_loop()
-        # Find nodes with no predecessors
-        a = [el for el in self.iternodes()]
-        #Prime the network
-        # loop.run_until_complete(self.prime())
-        # print('Done priming')
-        # #Execute them
+        # Find nodes
+        calls = [el for el in self.iternodes()]
+        #Calls to dot
         while True:
-            coros = [c() for c in a]
-            #Prime the network
+            coros = [c() for c in calls] + [self.dot_coro()]
             loop.run_until_complete(asyncio.gather(*coros))
-            #
-            #     except StopIteration:
-            #         print('Computation completed')
-
-# #Two generators
-# simple_gen = (i for i in range(40))
-# reverse_gen = (2 for i in range(40))
-# #A simple sum process
-# @process
-# def sum_messages(a=None, b=None):
-#     return a+b
-#
-#
-#
-#
-# #Simple network
-# a = Node('a', lambda x: next(simple_gen))
-# b = Node('b', lambda x: next(reverse_gen))
-# c = Node('c', sum_messages)
-# d = Node('d', lambda x: print(x))
-# graph = DAG()
-# graph.add_arc(a, c)
-# graph.add_arc(b, c)
-# graph.add_arc(c, d)
-# #Save
-# with open('a.dot', 'w+') as of:
-#     of.write(graph.dot())
-#
-# #Execute
-# graph()
