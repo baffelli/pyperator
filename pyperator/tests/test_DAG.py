@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from pype.nodes import Node as Node
+from pyperator.nodes import Node as Node
 from ..DAG import DAG as DAG
 
 class TestDAG(TestCase):
