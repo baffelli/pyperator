@@ -111,15 +111,22 @@ class Multigraph:
             """.format(nodes=";\n".join(nodes_gen), edges="\n".join(arc_str))
         return _tw.dedent(graph_str)
 
+    async def prime(self):
+        for node in self.iternodes():
+            for inbound_name, inbound in node.inports:
+                await inbound._connection.send(None)
+
     def __call__(self):
         loop = asyncio.get_event_loop()
         # Find nodes with no predecessors
         a = [el for el in self.iternodes()]
+        #Prime the network
+        # loop.run_until_complete(self.prime())
+        # print('Done priming')
         # #Execute them
-
-
         while True:
             coros = [c() for c in a]
+            #Prime the network
             loop.run_until_complete(asyncio.gather(*coros))
             #
             #     except StopIteration:
