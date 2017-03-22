@@ -48,12 +48,21 @@ class Port:
     async def send(self, data):
         await self.other.queue.put(data)
 
+    async def close(self):
+       await self.send('Done')
+
     async def receive(self):
         if self.is_connected:
             data = await self.queue.get()
-            return data
+            self.queue.task_done()
+            print(data)
+            if data == 'Done':
+                raise StopIteration
+            else:
+                return data
         else:
             return
+
 
     @property
     def is_connected(self):
