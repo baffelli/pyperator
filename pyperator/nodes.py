@@ -1,37 +1,43 @@
 from .utils import Connection
-from .utils import Port
+from .utils import InputPort, OutputPort
 import asyncio
 
+
+async def receive_future_data(futures):
+    result = {}
+    for k,v in futures.items():
+        result[k] = await v
+    return result
 
 class Component:
     def __init__(self, name, f=lambda x: None, inputs=[], outputs=[]):
         self.name = name
         self.data = {}
         # Input and output ports
-        self._inports = {}
-        self._outports = {}
+        self.inputs = {}
+        self.outputs = {}
         # Function of the node
         self.color = 'grey'
         self._f = f
-        self._ncall = 0
         self._active = asyncio.Queue()
         # initalize ports
         for inport in inputs:
-            self._inports.update({inport: Port(inport)})
+            self.inputs.update({inport: InputPort(inport, component=self)})
         for outport in outputs:
-            self._outports.update({outport: Port(outport)})
+            self.outputs.update({outport: OutputPort(outport, component=self)})
 
     def __repr__(self):
         st = "{}".format(self.name)
         return st
 
+
     def port_table(self):
 
         port_template = "<TD PORT=\"{portname}\">{portname}</TD>"
         row_template = "<TR>{ports}</TR>"
-        format_ports = lambda ports: "".join(port_template.format(portname=port.name) for port_name, port in ports)
-        inports = format_ports(self.inports)
-        outports = format_ports(self.outports)
+        format_ports = lambda ports: "".join(port_template.format(portname=port.name) for port in ports)
+        inports = format_ports(self.inputs.values())
+        outports = format_ports(self.outputs.values())
         inrow = row_template.format(ports=inports) if len(inports) > 0 else ""
         outrow = row_template.format(ports=outports) if len(outports) > 0 else ""
         table_template = """<
@@ -49,24 +55,21 @@ class Component:
                 {name} [label={lab}]""".format(c=self.color, name=str(self), lab=self.port_table())
         return st
 
-    async def prime(self):
-        for p_name, p in self.inports:
-            print('Sending None through {}'.format(p._connection))
-            await p._connection.send(None)
 
-    async def receive(self):
-        data = {}
-        for p_name, p in self.inports:
-            received = await p.receive()
-            data[p_name] = received
-            return {}
-        return data
+    def receive(self):
+        futures = {}
+        for p_name, p in self.inputs.items():
+            received = asyncio.ensure_future(p.receive())
+            futures[p_name] = received
+        return futures
 
-    async def send(self, data):
+    def send(self, data):
         # Send
-        for p_name, p in self.outports:
-            await p.send(data.get(p_name))
-        return
+        futures = []
+        for p_name, p in self.outputs.items():
+            futures.append(asyncio.ensure_future(p.send(data)))
+        return futures
+
 
     async def dot(self,):
         return self.gv_node()
@@ -81,46 +84,36 @@ class Component:
         # await self._active.put(self.color)
         self.color = 'grey'
 
-
     async def __call__(self):
         while True:
             await self.active()
-            data = await self.receive()
+            #Get the futures for the inputs
+            future_inputs = self.receive()
+            data = await receive_future_data(future_inputs)
+            print(self, data)
             #Work
-            transformed = self._f(**data)
-            print(transformed)
+            transformed_data = await self._f(**data)
+            print(transformed_data)
+            print(transformed_data)
             #Run downstream
-            await self.send(transformed)
-            for out, con in self.outports:
-                asyncio.ensure_future(con._connection.dest())
+            future = self.send(transformed_data)
             await self.inactive()
             await asyncio.sleep(0)
 
 
-
-
-    def connect(self, other, outport, inport):
-        c = Connection(self, other, outport, inport)
-        if outport in self._outports:
-            self._outports[outport].connect(c)
-        if inport in other._inports:
-            other._inports[inport].connect(c)
-        return c
-
     @property
     def n_in(self):
-        return len(self._inports)
+        return len(self.inputs)
 
     @property
     def n_out(self):
-        return len(self._outports)
+        return len(self.outputs)
+
+
 
     @property
-    def outports(self):
-        yield from self._outports.items()
+    def successors(self):
+        yield from (port._connection.dest  for port_name, port in self._outports.items())
 
-    @property
-    def inports(self):
-        yield from self._inports.items()
 
 

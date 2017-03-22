@@ -11,15 +11,13 @@ class GeneratorSource(Component):
         self._gen = generator
 
     async def __call__(self):
-        #We dont need to wait for incoming data
-        gen_output = next(self._gen)
-        print(gen_output)
-        #We call the generator and send
-        transformed = {out_name: gen_output for out_name, out_port in self.outports}
-        await self.send(transformed)
-        for out, con in self.outports:
-            asyncio.ensure_future(con._connection.dest())
-        await asyncio.sleep(0)
+        while True:
+            #We dont need to wait for incoming data
+            #We call the generator and send it output
+            gen_output = next(self._gen)
+            transformed = {out_name: gen_output for out_name, out_port in self.outputs}
+            await asyncio.wait(self.send(transformed))
+            await asyncio.sleep(0)
 
 
 
