@@ -97,8 +97,8 @@ class TestMultigraph(TestCase):
         graph()
 
     def testSumPipeline(self):
-        source1 = GeneratorSource('s1', source_gen)
-        source2 = GeneratorSource('s2', source_gen)
+        source1 = GeneratorSource('s1',  (i for i in range(100)))
+        source2 = GeneratorSource('s2',  (i for i in range(100)))
         shower = ShowInputs('printer', inputs=['in1'])
         summer = BroadcastApplyFunction('summer', adder )
         summer.inputs.add(InputPort('g1'))
@@ -113,17 +113,22 @@ class TestMultigraph(TestCase):
         graph()
 
     def testRecursivePipeline(self):
-        source = GeneratorSource('s', source_gen, outputs=['out1'])
-        shower = Component('printer', inputs=['in1'], f=printer)
-        summer = Component('sum', inputs=['i','j'], outputs=['result'], f= adder)
+        source1 = GeneratorSource('s1',  (1 for i in range(100)))
+        shower = ShowInputs('printer', inputs=['in1'])
+        summer = BroadcastApplyFunction('summer', adder )
+        summer.inputs.add(InputPort('g1'))
+        summer.inputs.add(InputPort('recursion'))
+        summer.outputs.add(OutputPort('sum'))
         graph = Multigraph()
-        graph.connect(source.outputs['out1'], summer.inputs['i'])
-        graph.connect(summer.outputs['result'], summer.inputs['j'])
-        graph.connect(summer.outputs['result'], shower.inputs['in1'])
-        print(graph.dot())
-        print(list(graph.iterarcs()))
-        # graph.set_initial_packet(summer.inputs['j'], 0)
-        # graph()
+        graph.connect(source1.outputs.OUT, summer.inputs.g1)
+        graph.connect(summer.outputs.sum, shower.inputs.in1)
+        graph.connect(summer.outputs.sum, summer.inputs.recursion)
+        graph.set_initial_packet(summer.inputs.recursion, 0)
+        with open('/home/baffelli/recursion.dot','w+') as outfile:
+            outfile.write(graph.dot())
+        graph()
+
+
 
 
 
