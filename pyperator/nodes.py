@@ -1,5 +1,7 @@
 from .utils import Connection
 from .utils import Port
+import asyncio
+
 
 class Component:
     def __init__(self, name, f=lambda x: None, inputs=[], outputs=[]):
@@ -12,6 +14,7 @@ class Component:
         self.color = 'grey'
         self._f = f
         self._ncall = 0
+        self._active = asyncio.Queue()
         # initalize ports
         for inport in inputs:
             self._inports.update({inport: Port(inport)})
@@ -56,26 +59,42 @@ class Component:
         for p_name, p in self.inports:
             received = await p.receive()
             data[p_name] = received
+            return {}
         return data
 
     async def send(self, data):
         # Send
         for p_name, p in self.outports:
             await p.send(data.get(p_name))
-
-
         return
 
+    async def dot(self,):
+        return self.gv_node()
+
+
+    async def active(self):
+        self.color = 'green'
+        # await self._active.put(self.color)
+
+
+    async def inactive(self):
+        # await self._active.put(self.color)
+        self.color = 'grey'
+
+
     async def __call__(self):
-        await self.prime()
-        data = await self.receive()
-        #Work
-        transformed = self._f(**data)
-        await self.send(transformed)
-
-
-
-
+        while True:
+            await self.active()
+            data = await self.receive()
+            #Work
+            transformed = self._f(**data)
+            print(transformed)
+            #Run downstream
+            await self.send(transformed)
+            for out, con in self.outports:
+                asyncio.ensure_future(con._connection.dest())
+            await self.inactive()
+            await asyncio.sleep(0)
 
 
 
