@@ -42,8 +42,6 @@ class Multigraph:
     def __init__(self):
         self._arcs = set()
         self._nodes = set()
-        #Create gui
-        self.dot_waiter = self.dot_coro()
 
     def connect(self, node1, node2, outport, inport):
         # Add nodes that are not in the node list
@@ -117,28 +115,28 @@ class Multigraph:
         return _tw.dedent(graph_str)
 
     async def dot_coro(self):
-        nodes = []
-        future_nodes = [node._active.get() for node in self.iternodes()]
-        completed, pending = await asyncio.wait(future_nodes,return_when=asyncio.FIRST_COMPLETED)
-        print(completed)
-        for node in self.iternodes():
-            print(node.color)
-            dot =await node.dot()
-            nodes.append(dot)
-        arc_str = (
-            "{source}:{outport} -> {dest}:{inport}".format(source=connection.source, dest=connection.dest,
-                                                                        inport=connection.inport,
-                                                                        outport=connection.outport) for
-            connection in self.iterarcs())
-        # edged_gen
-        graph_str = """
-            digraph DAG{{
-            graph[bgcolor=white, margin=0]
-                {nodes}
-                {edges}
-            }}
-            """.format(nodes=";\n".join(nodes), edges="\n".join(arc_str))
-        print(graph_str)
+        while True:
+            nodes = []
+            future_nodes = [node._active.get() for node in self.iternodes()]
+            completed, pending = await asyncio.wait(future_nodes,return_when=asyncio.FIRST_COMPLETED)
+            for node in self.iternodes():
+                print(node.color)
+                dot =await node.dot()
+                nodes.append(dot)
+            arc_str = (
+                "{source}:{outport} -> {dest}:{inport}".format(source=connection.source, dest=connection.dest,
+                                                                            inport=connection.inport,
+                                                                            outport=connection.outport) for
+                connection in self.iterarcs())
+            # edged_gen
+            graph_str = """
+                digraph DAG{{
+                graph[bgcolor=white, margin=0]
+                    {nodes}
+                    {edges}
+                }}
+                """.format(nodes=";\n".join(nodes), edges="\n".join(arc_str))
+            print(graph_str)
         return _tw.dedent(graph_str)
 
 
@@ -147,8 +145,19 @@ class Multigraph:
     def __call__(self):
         loop = asyncio.get_event_loop()
         # Find nodes
-        calls = [el for el in self.iternodes()]
-        #Calls to dot
-        while True:
-            coros = [c() for c in calls] + [self.dot_coro()]
-            loop.run_until_complete(asyncio.gather(*coros))
+        # producers = [el() for el in self.iternodes()]
+        producers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0]
+        # producers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in > 0]
+        # print(consumers)
+        # consumers = asyncio.gather(*consumers)
+        # producers = asyncio.gather(*producers)
+        # loop.run_until_complete(producers)
+        # loop.run_until_complete(consumers)
+        loop.run_until_complete(asyncio.gather(*producers))
+        # loop.run_forever()
+        # #Start dag coroutine
+        # # asyncio.ensure_future(self.dot_coro())
+        # #Calls to dot
+        # coros = [c() for c in calls]
+        #
+        # loop.run_until_complete(asyncio.gather(*(coros + consumers)))
