@@ -149,7 +149,8 @@ class Multigraph:
     def __call__(self):
         loop = asyncio.get_event_loop()
         #The producers are all the nodes that have no inputs
-        producers = [asyncio.ensure_future(node()) for node in self.iternodes()]
+        consumers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0]
+        producers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0]
         #Consumers are waited
-        loop.run_until_complete(asyncio.wait(producers))
+        loop.run_until_complete(asyncio.gather(*producers))
         loop.close()
