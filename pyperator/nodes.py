@@ -1,5 +1,4 @@
-from .utils import Connection
-from .utils import InputPort, OutputPort
+from .utils import InputPort, OutputPort, PortRegister
 import asyncio
 
 
@@ -14,8 +13,8 @@ class Component:
         self.name = name
         self.data = {}
         # Input and output ports
-        self.inputs = {}
-        self.outputs = {}
+        self.inputs = PortRegister(self)
+        self.outputs = PortRegister(self)
         # Function of the node
         self.color = 'grey'
         self._f = f
@@ -25,6 +24,7 @@ class Component:
             self.inputs.update({inport: InputPort(inport, component=self)})
         for outport in outputs:
             self.outputs.update({outport: OutputPort(outport, component=self)})
+
 
     def __repr__(self):
         st = "{}".format(self.name)
