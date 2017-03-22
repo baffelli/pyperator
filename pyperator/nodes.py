@@ -2,28 +2,17 @@ from .utils import InputPort, OutputPort, PortRegister
 import asyncio
 
 
-async def receive_future_data(futures):
-    result = {}
-    for k,v in futures.items():
-        result[k] = await v
-    return result
+
+
 
 class Component:
-    def __init__(self, name, f=lambda x: None, inputs=[], outputs=[]):
+    def __init__(self, name):
         self.name = name
-        self.data = {}
         # Input and output ports
         self.inputs = PortRegister(self)
         self.outputs = PortRegister(self)
-        # Function of the node
+        # Color of the node
         self.color = 'grey'
-        self._f = f
-        self._active = asyncio.Queue()
-        # initalize ports
-        for inport in inputs:
-            self.inputs.update({inport: InputPort(inport, component=self)})
-        for outport in outputs:
-            self.outputs.update({outport: OutputPort(outport, component=self)})
 
 
     def __repr__(self):
@@ -56,18 +45,29 @@ class Component:
         return st
 
 
-    def receive(self):
+    def schedule_receive(self):
         futures = {}
         for p_name, p in self.inputs.items():
             received = asyncio.ensure_future(p.receive())
             futures[p_name] = received
         return futures
 
+    async def receive(self):
+        futures = self.schedule_receive()
+        result = {}
+        for k, v in futures.items():
+            result[k] = await v
+        return result
+
+    async def close_downstream(self):
+        for p_name, p in self.outputs.items():
+            asyncio.ensure_future(p.close())
+
     def send(self, data):
         # Send
         futures = []
         for p_name, p in self.outputs.items():
-            futures.append(asyncio.ensure_future(p.send(data)))
+            futures.append(asyncio.ensure_future(p.send(data.get(p_name))))
         return futures
 
 
@@ -77,28 +77,15 @@ class Component:
 
     async def active(self):
         self.color = 'green'
-        # await self._active.put(self.color)
 
 
     async def inactive(self):
-        # await self._active.put(self.color)
         self.color = 'grey'
 
+
+
     async def __call__(self):
-        while True:
-            await self.active()
-            #Get the futures for the inputs
-            future_inputs = self.receive()
-            data = await receive_future_data(future_inputs)
-            print(self, data)
-            #Work
-            transformed_data = await self._f(**data)
-            print(transformed_data)
-            print(transformed_data)
-            #Run downstream
-            future = self.send(transformed_data)
-            await self.inactive()
-            await asyncio.sleep(0)
+        pass
 
 
     @property
