@@ -5,7 +5,7 @@ from aiohttp import web
 # from .gui import create_gui
 
 
-from pyperator.utils import Connection
+# from pyperator.utils import Connection
 
 cycle_str = 'Graph contains cycle beteween {} and {}'
 
@@ -47,10 +47,11 @@ class Multigraph:
         # Add nodes that are not in the node list
         [self._nodes.add(port.component) for port in [port1, port2] if not self.hasnode(port.component)]
         port1.connect(port2)
-        self._arcs.update({port1:port2})
+        self._arcs.update(port1.connect_dict)
 
     def set_initial_packet(self, port, value):
-        port = [port for source, dest in self.iterarcs() if dest==port][0]
+        ports = [dest for (source, dest) in self.iterarcs() if dest==port]
+        print(ports)
         port.set_initial_value(value)
 
     def hasarc(self, node1, node2, outport, inport):
@@ -67,7 +68,10 @@ class Multigraph:
         return self._nodes.__iter__()
 
     def iterarcs(self):
-        yield from self._arcs.items()
+        for source in self._arcs.keys():
+            for dest in source.iterends():
+                yield (source, dest)
+
 
     def adjacent(self, node):
         if node in self._arcs:
@@ -97,7 +101,7 @@ class Multigraph:
             yield from inner_dfs(self, node)
 
     def __repr__(self):
-        arc_str = ("{} -> {}".format(k.gv_string(), k.gv_string()) for k, v in self.iterarcs())
+        arc_str = ("{} -> {}".format(conn.gv_string(), conn.gv_string()) for conn in self.iterarcs())
         out_str = "\n".join(arc_str)
         return out_str
 
