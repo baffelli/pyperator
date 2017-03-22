@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from ..DAG import  Multigraph
-from ..components import GeneratorSource
+from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction
 from ..nodes import Component
 import asyncio
 from ..utils import InputPort, OutputPort,ArrayPort
@@ -11,8 +11,8 @@ async def printer(**kwargs):
     print("Inputs are {}".format(kwargs))
     return
 
-async def adder(**kwargs):
-    out = {'result': sum([item for k, item in kwargs.items() if item])}
+def adder(**kwargs):
+    out = sum([item for k, item in kwargs.items() if item])
     return out
 
 
@@ -70,8 +70,9 @@ class TestMultigraph(TestCase):
         # graph.set_initial_packet(c3.inputs['in1'], 6)
         async def send(messages):
             for m in messages:
+                await asyncio.sleep(0.2)
                 [asyncio.ensure_future(c1.outputs['a'].send(m)), asyncio.ensure_future(c2.outputs['b'].send(m))]
-            print('done')
+
             asyncio.ensure_future(c1.outputs['a'].close())
             asyncio.ensure_future(c2.outputs['b'].close())
         async def receive():
@@ -80,18 +81,35 @@ class TestMultigraph(TestCase):
                 res, doing = await asyncio.wait([c3.inputs['in1'].receive(),c3.inputs['in2'].receive()], return_when=asyncio.ALL_COMPLETED)
                 print('done receiving')
                 print(res.pop().result(),res.pop().result())
-                await asyncio.sleep(0)
+                # await asyncio.sleep(0)
         futures = [asyncio.ensure_future(send([1,2,3,4,5])),asyncio.ensure_future(receive())]
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(asyncio.gather(*futures))
+        loop.run_until_complete(futures[1])
 
 
     def testLinearPipeline(self):
-        source = GeneratorSource('s', source_gen, outputs=['out1'])
-        shower = Component('printer', inputs=['in1'], f= printer)
+        source = GeneratorSource('s', source_gen)
+        shower = ShowInputs('printer', inputs=['in1'])
         graph = Multigraph()
-        graph.connect(source.outputs['out1'], shower.inputs['in1'])
+        graph.connect(source.outputs['OUT'], shower.inputs['in1'])
         graph.set_initial_packet(shower.inputs['in1'],5)
+
+        graph()
+
+    def testSumPipeline(self):
+        source1 = GeneratorSource('s1', source_gen)
+        source2 = GeneratorSource('s2', source_gen)
+        shower = ShowInputs('printer', inputs=['in1'])
+        summer = BroadcastApplyFunction('summer', adder )
+        summer.inputs.add(InputPort('g1'))
+        summer.inputs.add(InputPort('g2'))
+        summer.outputs.add(OutputPort('sum'))
+        graph = Multigraph()
+        graph.connect(source1.outputs.OUT, summer.inputs.g1)
+        graph.connect(source2.outputs.OUT, summer.inputs.g2)
+        graph.connect(summer.outputs.sum, shower.inputs.in1)
+        with open('/home/baffelli/sum.dot','w+') as outfile:
+            outfile.write(graph.dot())
         graph()
 
     def testRecursivePipeline(self):
