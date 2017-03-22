@@ -63,10 +63,11 @@ class Port:
             return False
 
     def __repr__(self):
+        port_template ="Port {component}:{name}"
         if self.other:
-            formatted = "Port {component}:{name}".format(**self.__dict__)
+            formatted = port_template.format(**self.__dict__)
         else:
-            formatted = ""
+            formatted = port_template.format(**self.__dict__) + ', disconnected'
         return formatted
 
     def gv_string(self):
@@ -112,16 +113,6 @@ class ArrayPort(Port):
         else:
             return
 
-    # def __repr__(self):
-    #     other_str = []
-    #     #The string for the port itself
-    #     self_str = "Port {component}:{name}".format(component=self.component, name=self.name)
-    #     for other in self.other:
-    #         if other is not None:
-    #             other_str.append("{component}:{name}".format(component=other.component, name=other.name))
-    #     formatted = self_str + " connected to " + "[{}]".format(*other_str)
-    #     return formatted
-
 
 
 class OutputPort(ArrayPort):
@@ -149,6 +140,13 @@ class PortRegister:
 
     def __getitem__(self, item):
        return self.ports.get(item)
+
+    def __getattr__(self, item):
+        if item in self.ports:
+            return self.ports.get(item)
+        else:
+            return 'a'
+
 
     def __repr__(self):
        return "{component}: {ports}".format(component=self.component, ports=list(self.ports.keys()))
