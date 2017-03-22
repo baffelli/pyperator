@@ -51,11 +51,13 @@ class Port:
     async def close(self):
        await self.send('Done')
 
+    async def done(self):
+        self.other.queue.join()
+
     async def receive(self):
         if self.is_connected:
             data = await self.queue.get()
             self.queue.task_done()
-            print(data)
             if data == 'Done':
                 raise StopIteration
             else:
@@ -156,9 +158,14 @@ class PortRegister:
         else:
             return 'a'
 
+    def __len__(self):
+        return self.ports.__len__()
 
     def __repr__(self):
        return "{component}: {ports}".format(component=self.component, ports=list(self.ports.keys()))
+
+    def items(self):
+        yield from self.ports.items()
 
     def values(self):
         return self.ports.values()
