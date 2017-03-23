@@ -1,6 +1,7 @@
 from .nodes import Component
 from .utils import Port, ArrayPort,InputPort, OutputPort
 import asyncio
+import itertools
 
 class GeneratorSource(Component):
     """
@@ -24,18 +25,23 @@ class GeneratorSource(Component):
 class ConstantSource(Component):
     """
     This is a component that continously outputs a constant to
-    all the outputs, up to to :n: times, infinitely if :n: is none
+    all the outputs, up to to :repeat: times, infinitely if :repeat: is none
     """
-    def __init__(self, name, constant,outputs=['OUT'], n=None):
+    def __init__(self, name, constant,outputs=['OUT'], repeat=None):
         super(ConstantSource, self).__init__(name)
         self.constant = constant
+        self.repeat = repeat
         [self.outputs.add(OutputPort(output_name)) for output_name in outputs]
 
     async def __call__(self):
-        while True:
-            data = {port_name: self.constant for port_name, port in self.outputs.items()}
-            await asyncio.wait(self.send(data))
-            await asyncio.sleep(0)
+        for i in itertools.count():
+            if self.repeat and i >= self.repeat:
+                return
+            else:
+                data = {port_name: self.constant for port_name, port in self.outputs.items()}
+                await asyncio.wait(self.send(data))
+                await asyncio.sleep(0)
+
 
 
 
