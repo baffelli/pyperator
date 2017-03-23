@@ -1,11 +1,19 @@
 from .utils import InputPort, OutputPort, PortRegister
 import asyncio
+from abc import ABCMeta, abstractmethod
+
+class AbstractComponent(metaclass=ABCMeta):
+    """
+    This is an abstract component
+    """
+    @abstractmethod
+    def __call__(self):
+        pass
 
 
 
+class Component(AbstractComponent):
 
-
-class Component:
     def __init__(self, name):
         self.name = name
         # Input and output ports
