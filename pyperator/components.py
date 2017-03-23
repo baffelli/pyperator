@@ -21,6 +21,25 @@ class GeneratorSource(Component):
         await self.close_downstream()
 
 
+class ConstantSource(Component):
+    """
+    This is a component that continously outputs a constant to
+    all the outputs, up to to :n: times, infinitely if :n: is none
+    """
+    def __init__(self, name, constant,outputs=['OUT'], n=None):
+        super(ConstantSource, self).__init__(name)
+        self.constant = constant
+        [self.outputs.add(OutputPort(output_name)) for output_name in outputs]
+
+    async def __call__(self):
+        while True:
+            data = {port_name: self.constant for port_name, port in self.outputs.items()}
+            await asyncio.wait(self.send(data))
+            await asyncio.sleep(0)
+
+
+
+
 class BroadcastApplyFunction(Component):
     """
     This component applies a function of all inputs
