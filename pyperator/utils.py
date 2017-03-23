@@ -161,8 +161,11 @@ class PortRegister:
     def __len__(self):
         return self.ports.__len__()
 
-    def __repr__(self):
+    def __str__(self):
        return "{component}: {ports}".format(component=self.component, ports=list(self.ports.keys()))
+
+    def __repr__(self):
+        return self.port.__repr__()
 
     def items(self):
         yield from self.ports.items()
