@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from ..DAG import  Multigraph
-from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction
+from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource
 from ..nodes import Component
 import asyncio
 from ..utils import InputPort, OutputPort,ArrayPort
@@ -113,7 +113,7 @@ class TestMultigraph(TestCase):
         graph()
 
     def testRecursivePipeline(self):
-        source1 = GeneratorSource('s1',  (1 for i in range(100)))
+        source1 = GeneratorSource('s1',  (1 for i in range(1000)))
         shower = ShowInputs('printer', inputs=['in1'])
         summer = BroadcastApplyFunction('summer', adder )
         summer.inputs.add(InputPort('g1'))
@@ -123,13 +123,30 @@ class TestMultigraph(TestCase):
         graph.connect(source1.outputs.OUT, summer.inputs.g1)
         graph.connect(summer.outputs.sum, shower.inputs.in1)
         graph.connect(summer.outputs.sum, summer.inputs.recursion)
-        graph.set_initial_packet(summer.inputs.recursion, 0)
+        graph.set_initial_packet(summer.inputs.recursion, 1)
         with open('/home/baffelli/recursion.dot','w+') as outfile:
             outfile.write(graph.dot())
         graph()
 
+    def testConstantSource(self):
+        source1 = ConstantSource('s1', 3)
+        shower = ShowInputs('printer', inputs=['in1'])
+        graph = Multigraph()
+        graph.connect(source1.outputs['OUT'], shower.inputs.in1)
+        graph()
 
-
-
+    def testInfiniteRecursion(self):
+        source1 = ConstantSource('s1', 3)
+        shower = ShowInputs('printer', inputs=['in1'])
+        summer = BroadcastApplyFunction('summer', adder )
+        summer.inputs.add(InputPort('in1'))
+        summer.inputs.add(InputPort('recursion'))
+        summer.outputs.add(OutputPort('sum'))
+        graph = Multigraph()
+        graph.connect(source1.outputs.OUT, summer.inputs.in1)
+        graph.connect(summer.outputs.sum, summer.inputs.recursion)
+        graph.set_initial_packet(summer.inputs.recursion, 0)
+        graph.connect(summer.outputs.sum, shower.inputs.in1)
+        graph()
 
 
