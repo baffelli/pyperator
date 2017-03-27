@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from ..DAG import  Multigraph
-from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource
+from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource, Filter
 from ..nodes import Component
 import asyncio
 from ..utils import InputPort, OutputPort,ArrayPort
@@ -135,6 +135,9 @@ class TestMultigraph(TestCase):
         graph.connect(source1.outputs['OUT'], shower.inputs.in1)
         graph()
 
+
+
+
     def testInfiniteRecursion(self):
         source1 = ConstantSource('s1', 3)
         shower = ShowInputs('printer', inputs=['in1'])
@@ -150,3 +153,18 @@ class TestMultigraph(TestCase):
         graph()
 
 
+    def testFilter(self):
+        def filter_predicate(in1=None):
+            if in1 % 2 ==0:
+                return True
+            else:
+                return False
+        source1 = GeneratorSource('s1', (i for i in range(100)))
+        filt = Filter('filtrator',  filter_predicate,)
+        filt.inputs.add(InputPort('in1'))
+        filt.outputs.add(OutputPort('out1'))
+        shower = ShowInputs('printer', inputs=['in1'])
+        graph = Multigraph()
+        graph.connect(source1.outputs['OUT'], filt.inputs.in1)
+        graph.connect(filt.outputs.out1, shower.inputs.in1)
+        graph()
