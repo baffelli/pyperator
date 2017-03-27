@@ -43,7 +43,28 @@ class ConstantSource(Component):
                 await asyncio.sleep(0)
 
 
+class Filter(Component):
+    """
+    This component filters the input according to the given predicate
+    and sends it to the output
+    """
 
+    def __init__(self, name, predicate, **kwargs):
+        super(Filter, self).__init__(name)
+        self._predicate = predicate
+
+    async def __call__(self):
+        while True:
+            data = await self.receive()
+            filter_result = self._predicate(**data)
+            #If the predicate is true, the data is sent
+            if filter_result:
+                data = {port_name: data for port_name, port in self.outputs.items()}
+                await asyncio.wait(self.send(data))
+            #otherwise nothing is sent and a message is sent  to
+            #the components telling them that the filter failed
+            else:
+                continue
 
 
 class BroadcastApplyFunction(Component):
@@ -62,6 +83,7 @@ class BroadcastApplyFunction(Component):
             data = {port_name: transformed for port_name, port in self.outputs.items()}
             await asyncio.wait(self.send(data))
             await asyncio.sleep(0)
+
 
 
 class ShowInputs(Component):
