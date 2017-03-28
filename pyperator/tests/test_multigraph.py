@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from ..DAG import  Multigraph
-from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource, Filter
+from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource, Filter, OneOffProcess
 from ..nodes import Component
 import asyncio
 from ..utils import InputPort, OutputPort,ArrayPort
@@ -136,7 +136,20 @@ class TestMultigraph(TestCase):
         graph()
 
 
-
+    def testOneOffProcess(self):
+        source1 = ConstantSource('s1', 3)
+        source2 = OneOffProcess('of', lambda kwargs: 5)
+        source2.outputs.add(OutputPort('s2'))
+        summer = BroadcastApplyFunction('summer', adder )
+        summer.inputs.add(InputPort('g1'))
+        summer.inputs.add(InputPort('g2'))
+        summer.outputs.add(OutputPort('sum'))
+        shower = ShowInputs('printer', inputs=['in1'])
+        graph = Multigraph()
+        graph.connect(source1.outputs['OUT'], summer.inputs.g1)
+        graph.connect(source2.outputs['s2'], summer.inputs.g2)
+        graph.connect(summer.outputs.sum, shower.inputs.in1)
+        graph()
 
     def testInfiniteRecursion(self):
         source1 = ConstantSource('s1', 3)
