@@ -69,7 +69,7 @@ class Filter(Component):
 
 class BroadcastApplyFunction(Component):
     """
-    This component applies a function of all inputs
+    This component computes a function of the inputs
     and sends it to all outputs
     """
     def __init__(self, name, function):
@@ -84,6 +84,24 @@ class BroadcastApplyFunction(Component):
             await asyncio.wait(self.send(data))
             await asyncio.sleep(0)
 
+
+
+class OneOffProcess(BroadcastApplyFunction):
+    """
+    This class awaits the upstream process once and then keeps on
+    broadcasting the result to the outputs
+    """
+    def __init__(self, name, function):
+        super(OneOffProcess,self).__init__(name, function)
+
+    async def __call__(self):
+        #wait once for the data
+        data = await self.receive()
+        while True:
+            transformed = self.function(**data)
+            data = {port_name: transformed for port_name, port in self.outputs.items()}
+            await asyncio.wait(self.send(data))
+            await asyncio.sleep(0)
 
 
 class ShowInputs(Component):
