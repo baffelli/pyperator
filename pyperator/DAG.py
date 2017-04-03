@@ -52,7 +52,7 @@ class Multigraph:
     def set_initial_packet(self, port, value):
         ports = [dest for (source, dest) in self.iterarcs() if dest==port]
         print(ports)
-        port.set_initial_value(value)
+        port.set_initial_packet(value)
 
     def hasarc(self, node1, node2, outport, inport):
         return node1 in self._arcs and {node2: (outport, inport)} in self._arcs[node1]
@@ -149,10 +149,12 @@ class Multigraph:
     def __call__(self):
         loop = asyncio.get_event_loop()
         #The producers are all the nodes that have no inputs
-        consumers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0]
         producers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0]
-        #Consumers are waited
+        #Consumers are scheluded
+        consumers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0]
         try:
             loop.run_until_complete(asyncio.gather(*producers))
+        except Exception as e:
+            print(e)
         finally:
             loop.close()
