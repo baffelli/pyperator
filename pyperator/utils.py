@@ -1,36 +1,12 @@
 import asyncio
 from collections import OrderedDict as _od
 
-# class Edge:
-#     def __init__(self, source, dest, outport, inport):
-#         self.source = source
-#         self.dest = dest
-#         self.outport = outport
-#         self.inport = inport
-#         # self._qu = asyncio.Queue()
-#         # self._qu.put_nowait(None)
-#
-#     # async def send(self, data):
-#     #     await self._qu.put(data)
-#     #
-#     # async def receive(self):
-#     #     data = await self._qu.get()
-#     #     return data
-#
-#     def __repr__(self):
-#         return "{source}:{outport}-> {dest}:{inport}".format(source=self.source, dest=self.dest,
-#                                                              inport=self.inport, outport=self.outport)
-#
-#     def __eq__(self, other):
-#         return (
-#             self.source == other.source and self.dest == other.dest and
-#             self.inport == other.outport and self.outport == other.outport)
-#
-#     def __hash__(self):
-#         return (self.source, self.dest, self.inport, self.outport).__hash__()
+from .IP import  InformationPacket, EndOfStream, FilePacket
+
 
 
 conn_template = "{component}:{name}"
+
 
 
 
@@ -42,28 +18,41 @@ class Port:
         self.other = None
         self.queue = asyncio.Queue()
 
-    def set_initial_value(self, value):
-        self.queue.put_nowait(value)
+    def set_initial_packet(self, value):
+        packet = InformationPacket(value)
+        packet.owner = self.component
+        self.queue.put_nowait(packet)
 
-    async def send(self, data):
-        await self.other.queue.put(data)
+    async def receive(self):
+        packet = await self.receive_packet()
+        value = packet.value
+        packet.drop()
+        return value
+
+    async def send(self, value):
+        await self.send_packet(value)
+
+    async def send_packet(self, data):
+        packet = InformationPacket(data)
+        packet.owner = self.component
+        await self.other.queue.put(packet)
 
     async def close(self):
-        raise asyncio.QueueEmpty
-        # await self.send('Done')
+        packet = EndOfStream()
+        await self.other.queue.put(packet)
 
     async def done(self):
         self.other.queue.join()
 
 
-    async def receive(self):
+    async def receive_packet(self):
         if self.is_connected:
-            data = await self.queue.get()
+            packet = await self.queue.get()
             self.queue.task_done()
-            if data == 'Done':
+            if packet.is_eos:
                 raise StopIteration
             else:
-                return data
+                return packet
         else:
             return
 
@@ -101,6 +90,26 @@ class Port:
         yield self.other
 
 
+class FilePort(Port):
+
+    def __init__(self, name, component=None):
+        super(FilePort, self).__init__(name, component=component)
+        self.path = None
+
+
+    @property.setter
+    def set_path(self, path):
+        self.path = path
+
+
+    async def send_packet(self, data):
+        packet = FilePacket(self.path, mode='rw+')
+        packet.owner = self.component
+        await self.other._queue.put(packet)
+
+
+
+
 class ArrayPort(Port):
 
     def  __init__(self, name, size=1, component=None):
@@ -122,7 +131,9 @@ class ArrayPort(Port):
     async def send(self, data):
         if self.is_connected:
             for other in self.other:
-                await other.queue.put(data)
+                packet = InformationPacket(data)
+                packet.owner = self.component
+                await other.queue.put(packet)
         else:
             return
 
