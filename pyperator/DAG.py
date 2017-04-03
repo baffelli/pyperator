@@ -152,5 +152,7 @@ class Multigraph:
         consumers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0]
         producers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0]
         #Consumers are waited
-        loop.run_until_complete(asyncio.gather(*producers))
-        loop.close()
+        try:
+            loop.run_until_complete(asyncio.gather(*producers))
+        finally:
+            loop.close()
