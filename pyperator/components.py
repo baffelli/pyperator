@@ -22,6 +22,39 @@ class GeneratorSource(Component):
         await self.close_downstream()
 
 
+class Split(Component):
+    """
+    This component splits the input tuple into
+    separate ouputs; the number of elements is given
+    with `n_outs`
+    """
+    def __init__(self, name, n_outs=2):
+        super(Split, self).__init__(name)
+        # [self.outputs.add(OutputPort('OUT{n}'.format(n=n))) for n in range(n_outs)]
+        self.inputs.add(InputPort('IN'))
+
+
+    async def __call__(self):
+        while True:
+            data = await self.receive()
+            data = data.get('IN')
+            out_data = {}
+            for index_port, ((data_item),(output_port_name, output_port)) in enumerate(zip(data, self.outputs.items())):
+                out_data[output_port_name] = data_item
+            await asyncio.wait(self.send(out_data))
+            await asyncio.sleep(0)
+
+
+
+class GeneratorProductSource(Component):
+    """
+    This component returns a tuple obtained
+    from a product of generators
+    """
+    pass
+
+
+
 class ConstantSource(Component):
     """
     This is a component that continously outputs a constant to
@@ -117,3 +150,14 @@ class ShowInputs(Component):
             await asyncio.sleep(0)
 
 
+class Shell(Component):
+    """
+    This component executes a shell script with inputs and outputs
+    """
+    def __init__(self, name, cmd):
+        super(ShowInputs, self).__init__(name)
+
+
+
+    def tofile(self):
+        pass
