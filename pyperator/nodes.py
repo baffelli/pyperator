@@ -78,7 +78,6 @@ class Component(AbstractComponent):
             futures.append(asyncio.ensure_future(p.send(data.get(p_name))))
         return futures
 
-
     async def dot(self,):
         return self.gv_node()
 
