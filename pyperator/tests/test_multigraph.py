@@ -5,7 +5,7 @@ from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, Co
 from .. import components
 from ..nodes import Component
 import asyncio
-from ..utils import InputPort, OutputPort,ArrayPort
+from ..utils import InputPort, OutputPort,ArrayPort, NewFilePort
 
 
 async def printer(**kwargs):
@@ -72,7 +72,7 @@ class TestMultigraph(TestCase):
         async def send(messages):
             for m in messages:
                 await asyncio.sleep(0.2)
-                [asyncio.ensure_future(c1.outputs['a'].send(m)), asyncio.ensure_future(c2.outputs['b'].send(m))]
+                [asyncio.ensure_future(c1.outputs['a'].send_to_all(m)), asyncio.ensure_future(c2.outputs['b'].send_to_all(m))]
 
             asyncio.ensure_future(c1.outputs['a'].close())
             asyncio.ensure_future(c2.outputs['b'].close())
@@ -90,17 +90,19 @@ class TestMultigraph(TestCase):
 
     def testLinearPipeline(self):
         source = GeneratorSource('s', source_gen)
-        shower = ShowInputs('printer', inputs=['in1'])
+        shower = ShowInputs('printer')
+        shower.inputs.add(InputPort('in1'))
         graph = Multigraph()
         graph.connect(source.outputs['OUT'], shower.inputs['in1'])
-        graph.set_initial_packet(shower.inputs['in1'],5)
+        # graph.set_initial_packet(shower.inputs['in1'],5)
 
         graph()
 
     def testSumPipeline(self):
         source1 = GeneratorSource('s1',  (i for i in range(100)))
         source2 = GeneratorSource('s2',  (i for i in range(100)))
-        shower = ShowInputs('printer', inputs=['in1'])
+        shower = ShowInputs('printer')
+        shower.inputs.add(InputPort('in1'))
         summer = BroadcastApplyFunction('summer', adder )
         summer.inputs.add(InputPort('g1'))
         summer.inputs.add(InputPort('g2'))
@@ -115,7 +117,8 @@ class TestMultigraph(TestCase):
 
     def testRecursivePipeline(self):
         source1 = GeneratorSource('s1',  (1 for i in range(1000)))
-        shower = ShowInputs('printer', inputs=['in1'])
+        shower = ShowInputs('printer')
+        shower.inputs.add(InputPort('in1'))
         summer = BroadcastApplyFunction('summer', adder )
         summer.inputs.add(InputPort('g1'))
         summer.inputs.add(InputPort('recursion'))
@@ -131,10 +134,12 @@ class TestMultigraph(TestCase):
 
     def testConstantSource(self):
         source1 = ConstantSource('s1', 3)
-        shower = ShowInputs('printer', inputs=['in1'])
+        shower = ShowInputs('printer')
+        shower.inputs.add(InputPort('in1'))
         graph = Multigraph()
         graph.connect(source1.outputs['OUT'], shower.inputs.in1)
         graph()
+
 
 
     def testOneOffProcess(self):
@@ -171,7 +176,9 @@ class TestMultigraph(TestCase):
         splitter = components.Split('split in two')
         splitter.outputs.add(OutputPort('a'))
         splitter.outputs.add(OutputPort('b'))
-        shower = ShowInputs('printer', inputs=['a', 'b'])
+        shower = ShowInputs('printer')
+        shower.inputs.add(InputPort('a'))
+        shower.inputs.add(InputPort('b'))
         graph = Multigraph()
         graph.connect(source1.outputs.OUT, splitter.inputs.IN)
         graph.connect(splitter.outputs.a, shower.inputs.a)
@@ -193,3 +200,11 @@ class TestMultigraph(TestCase):
         graph.connect(source1.outputs['OUT'], filt.inputs.in1)
         graph.connect(filt.outputs.out1, shower.inputs.in1)
         graph()
+
+    def testShell(self):
+        shell = components.Shell('shell', 'echo a > {outputs.f1}')
+        shell.outputs.add(NewFilePort('f1'))
+        printer = ShowInputs('show path')
+        printer.inputs.add(NewFilePort('f1'))
+        graph = Multigraph()
+        graph.connect(shell.outputs.)
