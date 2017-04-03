@@ -2,6 +2,7 @@ from unittest import TestCase
 
 from ..DAG import  Multigraph
 from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource, Filter, OneOffProcess
+from .. import components
 from ..nodes import Component
 import asyncio
 from ..utils import InputPort, OutputPort,ArrayPort
@@ -165,6 +166,17 @@ class TestMultigraph(TestCase):
         graph.connect(summer.outputs.sum, shower.inputs.in1)
         graph()
 
+    def testSplit(self):
+        source1 = ConstantSource('s1', (3,5))
+        splitter = components.Split('split in two')
+        splitter.outputs.add(OutputPort('a'))
+        splitter.outputs.add(OutputPort('b'))
+        shower = ShowInputs('printer', inputs=['a', 'b'])
+        graph = Multigraph()
+        graph.connect(source1.outputs.OUT, splitter.inputs.IN)
+        graph.connect(splitter.outputs.a, shower.inputs.a)
+        graph.connect(splitter.outputs.b, shower.inputs.b)
+        graph()
 
     def testFilter(self):
         def filter_predicate(in1=None):
