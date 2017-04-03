@@ -1,5 +1,5 @@
 import asyncio
-
+from collections import OrderedDict as _od
 
 # class Edge:
 #     def __init__(self, source, dest, outport, inport):
@@ -49,10 +49,12 @@ class Port:
         await self.other.queue.put(data)
 
     async def close(self):
-       await self.send('Done')
+        raise asyncio.QueueEmpty
+        # await self.send('Done')
 
     async def done(self):
         self.other.queue.join()
+
 
     async def receive(self):
         if self.is_connected:
@@ -143,7 +145,7 @@ class PortRegister:
 
     def __init__(self, component):
         self.component = component
-        self.ports = {}
+        self.ports = _od()
 
     def add(self, port):
         port.component = self.component
