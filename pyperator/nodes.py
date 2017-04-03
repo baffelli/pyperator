@@ -71,11 +71,11 @@ class Component(AbstractComponent):
         for p_name, p in self.outputs.items():
             asyncio.ensure_future(p.close())
 
-    def send(self, data):
+    def send_to_all(self, data):
         # Send
         futures = []
         for p_name, p in self.outputs.items():
-            futures.append(asyncio.ensure_future(p.send(data.get(p_name))))
+            futures.append(asyncio.ensure_future(p.send(data)))
         return futures
 
     async def dot(self,):
