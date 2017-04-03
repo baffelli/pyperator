@@ -94,11 +94,14 @@ class FilePort(Port):
 
     def __init__(self, name, component=None):
         super(FilePort, self).__init__(name, component=component)
-        self.path = None
+        self._path = None
 
+    @property
+    def path(self):
+        return self._path
 
-    @property.setter
-    def set_path(self, path):
+    @path.setter
+    def path(self, path):
         self.path = path
 
 
@@ -185,3 +188,6 @@ class PortRegister:
 
     def values(self):
         return self.ports.values()
+
+    def keys(self):
+        return self.ports.keys()
