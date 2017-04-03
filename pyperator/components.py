@@ -2,6 +2,7 @@ from .nodes import Component
 from .utils import Port, ArrayPort,InputPort, OutputPort
 import asyncio
 import itertools
+from collections import namedtuple as _nt
 
 import subprocess as _sub
 
@@ -152,20 +153,38 @@ class Shell(Component):
     the command can contain the following ports
     """
     def __init__(self, name, cmd):
-        super(ShowInputs, self).__init__(name)
+        super(Shell, self).__init__(name)
         self.cmd = cmd
         #
         self.output_formatters = {}
 
     def FixedFormatter(self, port, path):
-        self.output_formatters[port] = lambda self: path
+        self.output_formatters[port] = lambda data: path
 
-    def DynamicFormatter(self, inport, outport,):
-        self.output_formatters[outport] = lambda inpacket: inpacket.
+    def DynamicFormatter(self, inport, outport, pattern):
+        self.output_formatters[outport] = lambda data: data[inport].path.replace(pattern)
+
+
+    def format_cmd(self, received_data):
+        outputs = {}
+        inputs = {}
+        for out, out_name in self.outputs.items():
+            outputs[out] = self.output_formatters[out](received_data)
+        for input, input_name in self.inputs.items():
+            inputs[input] = received_data.get(input_name)
+
+        inputs = type('inputs', (object,), inputs)
+        outputs = type('outputs', (object,), outputs)
+        formatted_cmd = self.cmd.format(inputs=inputs,outputs=outputs)
+        return formatted_cmd
 
     async def __call__(self):
+        print(self.cmd)
         #Wait for all upstram to be completed
-        await self.receive()
+        received = await self.receive()
         #Format shell command
-        cmd_formatted = self.cmd.format(self)
-        print(cmd_formatted)
+        formatted_cmd = self.format_cmd(received)
+        print(formatted_cmd)
+        #Run subprocess
+        _sub.ru
+        # print(cmd_formatted)
