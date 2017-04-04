@@ -3,7 +3,9 @@ import queue as _qu
 import textwrap as _tw
 from aiohttp import web
 # from .gui import create_gui
+import logging as _log
 
+from . import utils as _ut
 
 # from pyperator.utils import Connection
 
@@ -39,19 +41,23 @@ def topological_sort(dag):
 
 
 class Multigraph:
-    def __init__(self):
+    def __init__(self, log_path=None):
         self._arcs = {}
         self._nodes = set()
 
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
-        [self._nodes.add(port.component) for port in [port1, port2] if not self.hasnode(port.component)]
+        for port in [port1, port2]:
+            try:
+                if not self.hasnode(port.component):
+                    self._nodes.add(port.component)
+            except:
+                raise _ut.PortNotExistingException('Port {} does not exist'.format(port))
         port1.connect(port2)
         self._arcs.update(port1.connect_dict)
 
     def set_initial_packet(self, port, value):
         ports = [dest for (source, dest) in self.iterarcs() if dest==port]
-        print(ports)
         port.set_initial_packet(value)
 
     def hasarc(self, node1, node2, outport, inport):
@@ -59,6 +65,9 @@ class Multigraph:
 
     def hasnode(self, node):
         return node in self._nodes
+
+
+
 
     def disconnect(self, node1, node2):
         # TODO implement it
