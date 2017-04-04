@@ -53,6 +53,10 @@ class InformationPacket(object):
         return self._value
 
     @property
+    def basename(self):
+        return _os.path.basename(self.path)
+
+    @property
     def is_file(self):
         return False
 
@@ -84,9 +88,10 @@ class FilePacket(InformationPacket):
     def path(self):
         return self._path
 
+
     @property
     def exists(self):
-        return _os._exists(self.path)
+        return _os.path.isfile(self.path)
 
     @property
     def is_file(self):
@@ -95,6 +100,9 @@ class FilePacket(InformationPacket):
 
 
 class EndOfStream(InformationPacket):
+
+    def __init__(self):
+        super(EndOfStream,self).__init__(None)
 
     @property
     def is_eos(self):
