@@ -164,6 +164,10 @@ class Multigraph:
         try:
             loop.run_until_complete(asyncio.gather(*producers))
         except Exception as e:
-            print(e)
+            # print(e)
+            raise(e)
         finally:
-            loop.close()
+            try:
+                loop.close()
+            except RuntimeError:
+                pass
