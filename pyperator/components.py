@@ -100,7 +100,7 @@ class Filter(Component):
             #If the predicate is true, the data is sent
             if filter_result:
                 data = {port_name: data for port_name, port in self.outputs.items()}
-                await asyncio.wait(self.send_to_all(data))
+                await asyncio.wait(self.send_to_all(filter_result))
             #otherwise nothing is sent and a message is sent  to
             #the components telling them that the filter failed
             else:
@@ -120,7 +120,7 @@ class BroadcastApplyFunction(Component):
         while True:
             data = await self.receive()
             transformed = self.function(**data)
-            await asyncio.wait(self.send_to_all(transformed))
+            self.send_to_all(transformed)
             await asyncio.sleep(0)
 
 
@@ -151,7 +151,9 @@ class ShowInputs(Component):
     async def __call__(self):
         while True:
             packets = await self.receive_packets()
-            print(packets)
+            st = " ".join(["From {port}: {p.value}".format(port=port, p=packet) for port, packet in packets.items()])
+            print(st)
+            # print(map("{p.value}".format(p=packets)))
             await asyncio.sleep(0)
 
 
@@ -206,10 +208,9 @@ class Shell(Component):
             inputs, outputs, packets , existing = self.format_paths(received_packets)
             if not existing:
                 formatted_cmd = self.cmd.format(inputs=inputs, outputs=outputs)
-                print(formatted_cmd)
                 #Run subprocess
                 proc = _sub.Popen(formatted_cmd, shell=True)
-            await self.send_packets(packets)
+            await asyncio.wait(self.send_packets(packets))
             await asyncio.sleep(0)
 
 
