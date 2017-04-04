@@ -11,7 +11,7 @@ class PortNotExistingException(Exception):
 
 
 class Port:
-    def __init__(self, name, size=-1, component=None):
+    def __init__(self, name, size=-1, component=None, blocking=False):
         self.name = name
         self.component = component
         self.other = None
@@ -156,7 +156,7 @@ class ArrayPort(Port):
         if self.is_connected:
             for other in self.other:
                 packet = EndOfStream()
-                await asyncio.ensure_future(other.queue.put(packet))
+                asyncio.ensure_future(other.queue.put(packet))
 
 
 
@@ -205,3 +205,23 @@ class PortRegister:
 
     def keys(self):
         return self.ports.keys()
+
+    async def receive_packets(self):
+        futures = {}
+        packets = {}
+        for p_name, p in self.items():
+            futures[p_name] = asyncio.ensure_future(p.receive_packet())
+        # print(done.pop())
+        # done, pending = await asyncio.wait(list(futures.values()))
+        # print([d.result().value for d in done])
+        for k, v in futures.items():
+            data = await v
+            packets[k] = data
+        return packets
+
+    def send_packets(self, packets):
+        futures = []
+        for p_name, p in self.items():
+            packet = packets.get(p_name)
+            futures.append(asyncio.ensure_future(p.send_packet(packet)))
+        return futures
