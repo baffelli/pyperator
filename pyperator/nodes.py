@@ -67,9 +67,23 @@ class Component(AbstractComponent):
             result[k] = await v
         return result
 
-    async def close_downstream(self):
+    async def receive_packets(self):
+        packets = {}
+        for p_name, p in self.inputs.items():
+            received = await p.receive_packet()
+            packets[p_name] = received
+        return packets
+
+    async def send_packets(self, packets):
         for p_name, p in self.outputs.items():
-            asyncio.ensure_future(p.close())
+            packet = packets.get(p_name)
+            await asyncio.ensure_future(p.send_packet(packet))
+
+
+    async def close_downstream(self):
+        futures = []
+        for p_name, p in self.outputs.items():
+            futures.append(asyncio.ensure_future(p.close()))
 
     def send_to_all(self, data):
         # Send
