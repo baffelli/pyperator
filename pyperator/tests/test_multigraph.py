@@ -5,7 +5,10 @@ from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, Co
 from .. import components
 from ..nodes import Component
 import asyncio
-from ..utils import InputPort, OutputPort,ArrayPort, NewFilePort
+from ..utils import InputPort, OutputPort,ArrayPort, FilePort
+
+import os
+import uuid
 
 
 async def printer(**kwargs):
@@ -50,6 +53,12 @@ class TestMultigraph(TestCase):
         with open('/home/baffelli/multiport.dot','w+') as outfile:
             outfile.write(graph.dot())
 
+    def testPortUniqueness(self):
+        """Test if ports with the same name are unique"""
+        p1 = InputPort('b')
+        p2 = InputPort('b')
+        self.assertFalse(p1 == p2)
+
 
     def testPortRegister(self):
         c1 = Component('c1')
@@ -92,7 +101,7 @@ class TestMultigraph(TestCase):
         source = GeneratorSource('s', source_gen)
         shower = ShowInputs('printer')
         shower.inputs.add(InputPort('in1'))
-        graph = Multigraph()
+        graph = Multigraph(log_path='/home/baffelli/a.txt')
         graph.connect(source.outputs['OUT'], shower.inputs['in1'])
         # graph.set_initial_packet(shower.inputs['in1'],5)
 
@@ -201,10 +210,66 @@ class TestMultigraph(TestCase):
         graph.connect(filt.outputs.out1, shower.inputs.in1)
         graph()
 
-    def testShell(self):
-        shell = components.Shell('shell', 'echo a > {outputs.f1}')
-        shell.outputs.add(NewFilePort('f1'))
+    def testFixedFormatter(self):
+        #generate uniquefilename
+        unique_file = os.path.dirname(__file__) + '/' + str(uuid.uuid4())
+        toucher = components.Shell('shell', "touch {outputs.f1}")
+        toucher.outputs.add(FilePort('f1'))
+        toucher.FixedFormatter('f1', unique_file)
         printer = ShowInputs('show path')
-        printer.inputs.add(NewFilePort('f1'))
+        printer.inputs.add(FilePort('f1'))
         graph = Multigraph()
-        graph.connect(shell.outputs.)
+        graph.connect(toucher.outputs.f1, printer.inputs.f1)
+        graph()
+        self.assertTrue(os.path.exists(unique_file))
+
+    def testPatternFormatter(self):
+        #Source
+        source1 = GeneratorSource('s1', (i for i in range(5)))
+        toucher = components.Shell('shell', "echo {inputs.i.value} > {outputs.f1}")
+        toucher.outputs.add(FilePort('f1'))
+        toucher.inputs.add(InputPort('i'))
+        toucher.DynamicFormatter('f1', "{inputs.i.value}.txt")
+        printer = ShowInputs('show path')
+        printer.inputs.add(FilePort('f1'))
+        graph = Multigraph()
+        graph.connect(source1.outputs.OUT, toucher.inputs.i)
+        graph.connect(toucher.outputs.f1, printer.inputs.f1)
+        graph()
+
+    def combinatorialPatternFormatter(self):
+        pass
+
+    def testDoNotOverwrite(self):
+        #generate uniquefilename
+        unique_file = os.path.dirname(__file__) + '/' + 'already_exists'
+        toucher = components.Shell('shell', "touch {outputs.f1}")
+        toucher.outputs.add(FilePort('f1'))
+        toucher.FixedFormatter('f1', unique_file)
+        toucher_1 = components.Shell('shell', "touch {outputs.f1}")
+        toucher_1.outputs.add(FilePort('f1'))
+        toucher_1.FixedFormatter('f1', unique_file)
+        printer = ShowInputs('show path')
+        printer.inputs.add(FilePort('f1'))
+        printer.inputs.add(FilePort('f2'))
+        graph = Multigraph()
+        graph.connect(toucher.outputs.f1, printer.inputs.f1)
+        graph.connect(toucher_1.outputs.f1, printer.inputs.f2)
+        graph()
+        self.assertTrue(os.path.exists(unique_file))
+
+    def testDynamicFormatter(self):
+        #generate uniquefilename
+        unique_file = os.path.dirname(__file__) + '/' + str(uuid.uuid4())
+        toucher = components.Shell('shell', "touch {outputs.f1}")
+        #Write something into the file
+        writer = components.Shell('add_something', 'cp {inputs.f1} {outputs.f2}')
+        writer.inputs.add(FilePort('f2'))
+        writer.outputs.add(FilePort('f3'))
+        writer.DynamicFormatter('f2', 'f3', '.a')
+        printer = ShowInputs('show path')
+        printer.inputs.add(FilePort('f1'))
+        graph = Multigraph()
+        graph.connect(toucher.outputs.f1,writer.inputs.f2)
+        graph.connect(writer.outputs.f3, printer.inputs.f1)
+        graph()
