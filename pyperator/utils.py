@@ -1,9 +1,7 @@
 import asyncio
 from collections import OrderedDict as _od
 
-from .IP import  InformationPacket, EndOfStream, FilePacket
-
-
+from .IP import InformationPacket, EndOfStream, FilePacket
 
 conn_template = "{component}:{name}"
 
@@ -13,7 +11,7 @@ class PortNotExistingException(Exception):
 
 
 class Port:
-    def __init__(self, name, size=1, component=None):
+    def __init__(self, name, size=-1, component=None):
         self.name = name
         self.component = component
         self.other = None
@@ -31,12 +29,23 @@ class Port:
         return value
 
     async def send(self, value):
+        packet = InformationPacket(value)
+        packet.owner = self.component
         await self.send_packet(value)
 
-    async def send_packet(self, data):
-        packet = InformationPacket(data)
-        packet.owner = self.component
+    async def send_packet(self, packet):
         await self.other.queue.put(packet)
+
+    async def receive_packet(self):
+        if self.is_connected:
+            packet = await self.queue.get()
+            self.queue.task_done()
+            if packet.is_eos:
+               await asyncio.sleep(0)
+            else:
+                return packet
+        else:
+            return
 
     async def close(self):
         packet = EndOfStream()
@@ -44,7 +53,6 @@ class Port:
 
     async def done(self):
         self.other.queue.join()
-
 
     @property
     def path(self):
@@ -54,19 +62,6 @@ class Port:
     def path(self, path):
         pass
 
-
-    async def receive_packet(self):
-        if self.is_connected:
-            packet = await self.queue.get()
-            self.queue.task_done()
-            if packet.is_eos:
-                raise StopIteration
-            else:
-                return packet
-        else:
-            return
-
-
     @property
     def is_connected(self):
         if self.other is not None:
@@ -75,7 +70,7 @@ class Port:
             return False
 
     def __repr__(self):
-        port_template ="Port {component}:{name}"
+        port_template = "Port {component}:{name}"
         if self.other:
             formatted = port_template.format(**self.__dict__)
         else:
@@ -83,18 +78,16 @@ class Port:
         return formatted
 
     def gv_string(self):
-       return conn_template.format(**self.__dict__)
-
+        return conn_template.format(**self.__dict__)
 
     def connect(self, other_port):
         self.other = other_port
-        connect_dict ={self:other_port}
         if not self.other:
             other_port.connect(self)
 
     @property
     def connect_dict(self):
-        return {self:self.other}
+        return {self: self.other}
 
     def iterends(self):
         yield self.other
@@ -119,27 +112,23 @@ class FilePort(Port):
     def path(self, path):
         self._path = path
 
-
-    async def send_packet(self, data):
+    async def send(self, data):
         packet = FilePacket(self.path, mode='rw+')
         packet.owner = self.component
+        await self.send_packet(packet)
+
+    async def send_packet(self, packet):
         await self.other.queue.put(packet)
 
 
-
-
 class ArrayPort(Port):
-
-    def  __init__(self, name, size=1, component=None):
+    def __init__(self, name, size=1, component=None):
         super(ArrayPort, self).__init__(name, size=size, component=component)
         self.other = []
 
-
-
-
     @property
     def connect_dict(self):
-        return {self:[other for other in self.other]}
+        return {self: [other for other in self.other]}
 
     def iterends(self):
         yield from self.other
@@ -148,6 +137,11 @@ class ArrayPort(Port):
         if other_port not in self.other:
             self.other.append(other_port)
             other_port.connect(self)
+
+    async def send_packet(self, packet):
+        if self.is_connected:
+            for other in self.other:
+                await other.queue.put(packet)
 
     async def send(self, data):
         if self.is_connected:
@@ -158,23 +152,25 @@ class ArrayPort(Port):
         else:
             return
 
+    async def close(self):
+        if self.is_connected:
+            for other in self.other:
+                packet = EndOfStream()
+                await asyncio.ensure_future(other.queue.put(packet))
+
 
 
 class OutputPort(ArrayPort):
-
     async def receive(self):
         return
 
 
 class InputPort(ArrayPort):
-
     async def send(self, data):
         return
 
 
-
 class PortRegister:
-
     def __init__(self, component):
         self.component = component
         self.ports = _od()
@@ -184,7 +180,7 @@ class PortRegister:
         self.ports.update({port.name: port})
 
     def __getitem__(self, item):
-       return self.ports.get(item)
+        return self.ports.get(item)
 
     def __getattr__(self, item):
         if item in self.ports:
@@ -196,7 +192,7 @@ class PortRegister:
         return self.ports.__len__()
 
     def __str__(self):
-       return "{component}: {ports}".format(component=self.component, ports=list(self.ports.keys()))
+        return "{component}: {ports}".format(component=self.component, ports=list(self.ports.keys()))
 
     def __repr__(self):
         return self.port.__repr__()
