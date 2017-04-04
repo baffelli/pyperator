@@ -8,7 +8,8 @@ from .IP import  InformationPacket, EndOfStream, FilePacket
 conn_template = "{component}:{name}"
 
 
-
+class PortNotExistingException(Exception):
+    pass
 
 
 class Port:
@@ -43,6 +44,15 @@ class Port:
 
     async def done(self):
         self.other.queue.join()
+
+
+    @property
+    def path(self):
+        return None
+
+    @path.setter
+    def path(self, path):
+        pass
 
 
     async def receive_packet(self):
@@ -91,6 +101,11 @@ class Port:
 
 
 class FilePort(Port):
+    """
+    This is a port used in shell commands
+    that exchanges FilePackets instead of regular
+    InformationPackets
+    """
 
     def __init__(self, name, component=None):
         super(FilePort, self).__init__(name, component=component)
@@ -102,13 +117,13 @@ class FilePort(Port):
 
     @path.setter
     def path(self, path):
-        self.path = path
+        self._path = path
 
 
     async def send_packet(self, data):
         packet = FilePacket(self.path, mode='rw+')
         packet.owner = self.component
-        await self.other._queue.put(packet)
+        await self.other.queue.put(packet)
 
 
 
@@ -118,6 +133,9 @@ class ArrayPort(Port):
     def  __init__(self, name, size=1, component=None):
         super(ArrayPort, self).__init__(name, size=size, component=component)
         self.other = []
+
+
+
 
     @property
     def connect_dict(self):
