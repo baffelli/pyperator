@@ -6,6 +6,10 @@ from collections import namedtuple as _nt
 
 import subprocess as _sub
 
+
+class FormatterError(Exception):
+    pass
+
 class GeneratorSource(Component):
     """
     This is a component that returns a single element from a generator
@@ -150,7 +154,8 @@ class ShowInputs(Component):
 class Shell(Component):
     """
     This component executes a shell script with inputs and outputs
-    the command can contain the following ports
+    the command can contain normal ports and FilePorts
+    for input and output
     """
     def __init__(self, name, cmd):
         super(Shell, self).__init__(name)
@@ -161,30 +166,74 @@ class Shell(Component):
     def FixedFormatter(self, port, path):
         self.output_formatters[port] = lambda data: path
 
-    def DynamicFormatter(self, inport, outport, pattern):
-        self.output_formatters[outport] = lambda data: data[inport].path.replace(pattern)
+    def DynamicFormatter(self, outport, pattern):
+        self.output_formatters[outport] = pattern
+
+
+    def format_paths(self, received_data):
+        """
+        This function generates the (dynamic) output
+        paths using the inputs and the formatting functions
+        """
+        # inputs = {}
+        # for input, input_name in self.inputs.items():
+        #     inputs[input] = received_data.get(input_name).path
+        inputs = type('inputs', (object,), received_data)
+        outputs = {}
+        for out, out_port in self.outputs.items():
+            try:
+                outputs[out] = self.output_formatters[out].format(inputs=inputs, outputs=outputs)
+            except:
+                raise FormatterError('Port {} does not have a path formatter specified'.format(out))
+        outputs = type('outputs', (object,), outputs)
+        return inputs, outputs
+
+    def format_input_paths(self, received_data):
+        """
+        This function generates the (dynamic) input
+        paths using the inputs and the formatting functions
+        """
+        inputs = {}
+        for input, input_name in self.inputs.items():
+            inputs[input] = received_data.get(input_name).path
+        inputs = type('inputs', (object,), inputs)
+        return inputs
+
+    def set_output_packets(self):
+        """
+        This function generates the (dynamic) input
+        paths and parameters using the inputs and the formatting functions
+        """
 
 
     def format_cmd(self, received_data):
         outputs = {}
         inputs = {}
-        for out, out_name in self.outputs.items():
+        for out, out_port in self.outputs.items():
             outputs[out] = self.output_formatters[out](received_data)
+            #Set path for port
+            out_port.path = outputs[out]
         for input, input_name in self.inputs.items():
             inputs[input] = received_data.get(input_name)
 
-        inputs = type('inputs', (object,), inputs)
+
         outputs = type('outputs', (object,), outputs)
         formatted_cmd = self.cmd.format(inputs=inputs,outputs=outputs)
         return formatted_cmd
 
     async def __call__(self):
-        print(self.cmd)
-        #Wait for all upstram to be completed
-        received = await self.receive()
-        #Format shell command
-        formatted_cmd = self.format_cmd(received)
-        print(formatted_cmd)
-        #Run subprocess
-        _sub.ru
-        # print(cmd_formatted)
+        while True:
+            #Wait for all upstram to be completed
+            received_packets = await self.receive_packets()
+            print(received_packets['i'].value)
+            #Format shell command
+            inputs, outputs = self.format_paths(received_packets)
+            formatted_cmd = self.cmd.format(inputs=inputs, outputs=outputs)
+            print(formatted_cmd)
+            #Run subprocess
+            proc = _sub.Popen(formatted_cmd, shell=True)
+            data = {port_name: None for port_name, port in self.outputs.items()}
+            await asyncio.wait(self.send_to_all(data))
+            await asyncio.sleep(0)
+
+
