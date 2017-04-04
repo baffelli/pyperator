@@ -226,19 +226,23 @@ class TestMultigraph(TestCase):
     def testPatternFormatter(self):
         #Source
         source1 = GeneratorSource('s1', (i for i in range(5)))
-        toucher = components.Shell('shell', "echo {inputs.i.value} > {outputs.f1}")
+        source2 = GeneratorSource('s2', (i for i in range(5)))
+        toucher = components.Shell('shell', "echo '{inputs.i.value}, {inputs.j.value} to {outputs.f1.path}' > {outputs.f1.path}")
         toucher.outputs.add(FilePort('f1'))
         toucher.inputs.add(InputPort('i'))
-        toucher.DynamicFormatter('f1', "{inputs.i.value}.txt")
-        printer = ShowInputs('show path')
-        printer.inputs.add(FilePort('f1'))
+        toucher.inputs.add(InputPort('j'))
+        toucher.DynamicFormatter('f1', "{inputs.i.value}_{inputs.j.value}.txt")
+        printer = ShowInputs('show_path')
+        printer.inputs.add(FilePort('f2'))
         graph = Multigraph()
         graph.connect(source1.outputs.OUT, toucher.inputs.i)
-        graph.connect(toucher.outputs.f1, printer.inputs.f1)
+        graph.connect(source2.outputs.OUT, toucher.inputs.j)
+        graph.connect(toucher.outputs.f1, printer.inputs.f2)
         graph()
 
-    def combinatorialPatternFormatter(self):
-        pass
+    # def combinatorialPatternFormatter(self):
+    #     source1 = GeneratorSource('s1', (i for i in range(5)))
+    #     source2 = GeneratorSource('s2', (i for i in range(5)))
 
     def testDoNotOverwrite(self):
         #generate uniquefilename
