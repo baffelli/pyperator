@@ -1,6 +1,7 @@
 from .utils import InputPort, OutputPort, PortRegister
 import asyncio
 from abc import ABCMeta, abstractmethod
+from . import IP
 
 class AbstractComponent(metaclass=ABCMeta):
     """
@@ -53,31 +54,16 @@ class Component(AbstractComponent):
         return st
 
 
-    def schedule_receive(self):
-        futures = {}
-        for p_name, p in self.inputs.items():
-            received = asyncio.ensure_future(p.receive())
-            futures[p_name] = received
-        return futures
-
     async def receive(self):
-        futures = self.schedule_receive()
-        result = {}
-        for k, v in futures.items():
-            result[k] = await v
-        return result
+        packets = await self.receive_packets()
+        return {k:v.value for k,v in packets.items()}
 
     async def receive_packets(self):
-        packets = {}
-        for p_name, p in self.inputs.items():
-            received = await p.receive_packet()
-            packets[p_name] = received
+        packets = await self.inputs.receive_packets()
         return packets
 
-    async def send_packets(self, packets):
-        for p_name, p in self.outputs.items():
-            packet = packets.get(p_name)
-            await asyncio.ensure_future(p.send_packet(packet))
+    def send_packets(self, packets):
+        return self.outputs.send_packets(packets)
 
 
     async def close_downstream(self):
@@ -87,10 +73,13 @@ class Component(AbstractComponent):
 
     def send_to_all(self, data):
         # Send
-        futures = []
-        for p_name, p in self.outputs.items():
-            futures.append(asyncio.ensure_future(p.send(data)))
+        packets = {p:IP.InformationPacket(data) for p, v in self.outputs.items()}
+        futures =  self.outputs.send_packets(packets)
         return futures
+        # for p_name, p in self.outputs.items():
+        #
+        #     futures.append(asyncio.ensure_future(p.send(data)))
+        # return futures
 
     async def dot(self,):
         return self.gv_node()
