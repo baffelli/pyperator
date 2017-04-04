@@ -44,11 +44,23 @@ class InformationPacket(object):
     def is_eos(self):
         return False
 
+    @property
+    def exists(self):
+        return True
+
+    @property
+    def path(self):
+        return self._value
+
+    @property
+    def is_file(self):
+        return False
+
 class FilePacket(InformationPacket):
 
     def __init__(self, path, mode='r'):
         super(FilePacket, self).__init__(None)
-        self.path = path
+        self._path = path
         self.mode = mode
         self.tempfile = tempfile.TemporaryFile()
 
@@ -69,9 +81,16 @@ class FilePacket(InformationPacket):
             return infile.read()
 
     @property
+    def path(self):
+        return self._path
+
+    @property
     def exists(self):
         return _os._exists(self.path)
 
+    @property
+    def is_file(self):
+        return True
 
 
 
