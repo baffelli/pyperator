@@ -58,8 +58,11 @@ class PortNotExistingException(Exception):
 class StopComputation(StopIteration):
     pass
 
-
 class PortDisconnectedError(Exception):
+    pass
+
+
+class MultipleConnectionError(Exception):
     pass
 
 class Port:
@@ -224,12 +227,26 @@ class FilePort(Port):
 
 
 class OutputPort(Port):
-    async def receive(self):
+    async def receive_packet(self, packet):
         return
 
 
 class InputPort(Port):
-    async def send(self, data):
+
+    def __init__(self, *args, **kwargs):
+        super(InputPort, self).__init__(*args, **kwargs)
+        self._n_ohter = 0
+
+    def connect(self, other_port):
+        if self._n_ohter == 0:
+            super(InputPort, self).connect(other_port)
+            self._n_ohter +=1
+        else:
+            ext_text = "A {} only supports one incoming connection".format(type(self))
+            logging.getLogger('root').error(ext_text)
+            raise MultipleConnectionError(ext_text)
+
+    async def send_packet(self, packet):
         return
 
 
