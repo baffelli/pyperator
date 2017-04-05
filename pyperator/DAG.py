@@ -152,12 +152,11 @@ class Multigraph:
             loop.run_until_complete(producers)
             loop.run_until_complete(consumers)
         except Exception as e:
-            print(e)
-            producers.cancel()
-            loop.close()
+            logging.getLogger('root').error(e)
+            logging.getLogger('root').info('Stopping DAG by closing consumers')
+            consumers.cancel()
         finally:
-            try:
+            if loop.is_running():
                 loop.close()
                 logging.getLogger('root').info('Stopping DAG')
-            except RuntimeError:
-                pass
+
