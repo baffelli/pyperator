@@ -5,7 +5,7 @@ from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, Co
 from .. import components
 from ..nodes import Component
 import asyncio
-from ..utils import InputPort, OutputPort,ArrayPort, FilePort
+from ..utils import InputPort, OutputPort, FilePort
 from .. import IP
 
 import os
@@ -66,6 +66,17 @@ class TestMultigraph(TestCase):
         with open('/home/baffelli/multiport.dot','w+') as outfile:
             outfile.write(graph.dot())
 
+    def testMultipleConnection(self):
+        c1 = Component('c1')
+        c1.outputs.add(OutputPort('a'))
+        c1.outputs.add(OutputPort('b'))
+        c2 = Component('c2')
+        c2.inputs.add(InputPort('a'))
+        graph = Multigraph()
+        graph.connect(c1.outputs.a, c2.inputs.a)
+        graph.connect(c1.outputs.b, c2.inputs.a)
+
+
     def testPortUniqueness(self):
         """Test if ports with the same name are unique"""
         p1 = InputPort('b')
@@ -114,7 +125,7 @@ class TestMultigraph(TestCase):
         source = GeneratorSource('s', source_gen)
         shower = ShowInputs('printer')
         shower.inputs.add(InputPort('in1'))
-        graph = Multigraph(log_path='/home/baffelli/a.txt')
+        graph = Multigraph()
         graph.connect(source.outputs['OUT'], shower.inputs['in1'])
         # graph.set_initial_packet(shower.inputs['in1'],5)
 
@@ -251,6 +262,20 @@ class TestMultigraph(TestCase):
         graph = Multigraph()
         graph.connect(source1.outputs.OUT, toucher.inputs.i)
         graph.connect(source2.outputs.OUT, toucher.inputs.j)
+        graph.connect(toucher.outputs.f1, printer.inputs.f2)
+        graph()
+
+    def testShellFail(self):
+        #Source
+        source1 = GeneratorSource('s1', (i for i in range(5)))
+        toucher = components.Shell('shell', "cara")
+        toucher.outputs.add(FilePort('f1'))
+        toucher.inputs.add(InputPort('i'))
+        toucher.DynamicFormatter('f1', "{inputs.i.value}.test")
+        printer = ShowInputs('show_path')
+        printer.inputs.add(FilePort('f2'))
+        graph = Multigraph()
+        graph.connect(source1.outputs.OUT, toucher.inputs.i)
         graph.connect(toucher.outputs.f1, printer.inputs.f2)
         graph()
 
