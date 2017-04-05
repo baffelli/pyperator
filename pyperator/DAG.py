@@ -44,6 +44,15 @@ class Multigraph:
     def __init__(self, log_path=None):
         self._arcs = {}
         self._nodes = set()
+        self._workdir = None
+
+    @property
+    def workdir(self):
+        return self._workdir
+
+    @workdir.setter
+    def workdir(self, dir):
+        self._workdir = dir
 
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
