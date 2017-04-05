@@ -161,7 +161,7 @@ class ShowInputs(Component):
             # st = " ".join(["From {port}: {p.value}".format(port=port, p=packet) for port, packet in packets.items()])
             # print(st)
             # print(map("{p.value}".format(p=packets)))
-            await asyncio.sleep(0)
+            # await asyncio.sleep(0)
 
 
 class Shell(Component):
@@ -228,7 +228,6 @@ class Shell(Component):
                     ext_str = "{}: running command '{}' failed with output: \n {}".format(self.name, formatted_cmd, stderr.strip())
                     logging.getLogger('root').error(ext_str)
                     raise CommandFailedError(ext_str)
-                    await asyncio.sleep(1110)
                 else:
                     success_str = "{}: command successfully run, with output: {}".format(self.name, stdout)
                     logging.getLogger('root').info(success_str)
@@ -242,3 +241,4 @@ class Shell(Component):
                 logging.getLogger('root').debug("{}: Skipping command because output files exist".format(self.name))
             await asyncio.wait(self.send_packets(packets))
             await asyncio.sleep(0)
+
