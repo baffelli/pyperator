@@ -1,23 +1,18 @@
-from .nodes import Component
-from .utils import Port, ArrayPort,InputPort, OutputPort, Wildcards
 import asyncio
 import itertools
-from collections import namedtuple as _nt
-from . import IP
-
+import logging
 import subprocess as _sub
 
+from pyperator.IP import FileNotExistingError
 
-import logging
+from . import IP
+from .nodes import Component
+from .utils import InputPort, OutputPort
+
 
 class FormatterError(Exception):
     pass
 
-class FileExistingError(Exception):
-    pass
-
-class FileNotExistingError(Exception):
-    pass
 
 class GeneratorSource(Component):
     """
