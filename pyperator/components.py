@@ -13,7 +13,10 @@ import logging
 class FormatterError(Exception):
     pass
 
-class FileExistsException(Exception):
+class FileExistingError(Exception):
+    pass
+
+class FileNotExistingError(Exception):
     pass
 
 class GeneratorSource(Component):
@@ -153,6 +156,7 @@ class ShowInputs(Component):
     async def __call__(self):
         while True:
             packets = await self.receive_packets()
+            print("".join([str(p) for p in packets.values()]))
             # st = " ".join(["From {port}: {p.value}".format(port=port, p=packet) for port, packet in packets.items()])
             # print(st)
             # print(map("{p.value}".format(p=packets)))
@@ -198,7 +202,9 @@ class Shell(Component):
                     logging.getLogger('root').debug("{}: Output file '{}' exist".format(self.name, packets[out].path))
                     existing = True
             except Exception as e:
-                raise FormatterError('Port {} does not have a path formatter specified'.format(out))
+                ex_text = 'Port {} does not have a path formatter specified'.format(out)
+                logging.getLogger('root').error(ex_text)
+                raise FormatterError(ex_text)
         outputs = type('outputs', (object,), packets)
         return inputs, outputs, packets, existing
 
@@ -212,8 +218,19 @@ class Shell(Component):
             if not existing:
                 formatted_cmd = self.cmd.format(inputs=inputs, outputs=outputs)
                 logging.getLogger('root').debug("Executing command {}".format(formatted_cmd))
-                #Run subprocess
-                proc = _sub.Popen(formatted_cmd, shell=True)
+                #Define stdout and stderr pipes
+                stdout = _sub.PIPE
+                stderr = _sub.PIPE
+                proc = _sub.Popen(formatted_cmd, shell=True, stdout=stdout, stderr=stderr)
+                proc.wait()
+                if proc.returncode != 0:
+                    print('fai;l')
+                #Check if the output files exist
+                for k,p in packets.items():
+                    if not p.exists:
+                        ex_str = '{name}: File {p.path} does not exist'.format(name=self.name, p=p)
+                        logging.getLogger('root').error(ex_str)
+                        raise FileNotExistingError(ex_str)
             else:
                 logging.getLogger('root').debug("{}: Skipping command because output files exist".format(self.name))
             await asyncio.wait(self.send_packets(packets))

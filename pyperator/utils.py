@@ -86,10 +86,11 @@ class Port:
         if self.is_connected:
             logging.getLogger('root').debug("{} receiving at {}".format(self.component, self.name))
             packet = await self.queue.get()
-            logging.getLogger('root').debug("{} received from {}".format(self.name, self.name))
+            logging.getLogger('root').debug("{} received from {}".format(self.component, self.name))
             self.queue.task_done()
             if packet.is_eos:
-               await asyncio.sleep(0)
+                logging.getLogger('root').debug("{} received  close from {}".format(self.component, self.name))
+                await asyncio.sleep(0)
             else:
                 return packet
         else:
@@ -269,11 +270,9 @@ class PortRegister:
         for k, v in futures.items():
             data = await v
             packets[k] = data
-        print('receive', self.component, packets)
         return packets
 
     def send_packets(self, packets):
-        print('send', self.component, packets)
         futures = []
         for p_name, p in self.items():
             packet = packets.get(p_name)

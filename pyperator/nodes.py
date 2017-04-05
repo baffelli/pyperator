@@ -61,6 +61,9 @@ class Component(AbstractComponent):
 
     async def receive_packets(self):
         packets = await self.inputs.receive_packets()
+        for p in packets.values():
+            if p.is_eos:
+                print('eos')
         return packets
 
     def send_packets(self, packets):
@@ -70,10 +73,12 @@ class Component(AbstractComponent):
     async def close_downstream(self):
         futures = []
         for p_name, p in self.outputs.items():
+            logging.getLogger('root').debug("{} sending  close to {}".format(self.name, p_name))
             futures.append(asyncio.ensure_future(p.close()))
 
     def send_to_all(self, data):
         # Send
+        logging.getLogger('root').debug("{} sending '{}' to all output ports".format(self.name, data))
         packets = {p:IP.InformationPacket(data) for p, v in self.outputs.items()}
         futures =  self.outputs.send_packets(packets)
         return futures

@@ -18,7 +18,7 @@ class InformationPacket(object):
 
 
     def __str__(self):
-        return "{} owned by {}".format(str(self.value, self.owner))
+        return "{} owned by {}, path {}, value {}".format(self.__repr__(), self.owner, self.path, self.value)
 
     @property
     def value(self):
@@ -31,7 +31,7 @@ class InformationPacket(object):
 
     @property
     def owner(self):
-        return self.owner
+        return self._owner
 
     @owner.setter
     def owner(self, value):
@@ -60,6 +60,9 @@ class InformationPacket(object):
     def is_file(self):
         return False
 
+    def open(self):
+        pass
+
 class FilePacket(InformationPacket):
 
     def __init__(self, path, mode='r'):
@@ -69,11 +72,13 @@ class FilePacket(InformationPacket):
         self.tempfile = tempfile.TemporaryFile()
 
     def open(self, mode='r'):
-        return open(self.path, mode)
+        if self.exists:
+            return open(self.path, mode)
+        else:
+            return self.open_temp()
 
     def open_temp(self):
-        tempfile = open(self.tempfile, 'wb+')
-        return tempfile
+        return self.tempfile
 
     def finalize(self):
         shutil.copy(self.tempfile, self.path)
@@ -81,8 +86,8 @@ class FilePacket(InformationPacket):
 
     @property
     def value(self):
-        with self.open(self.path, self.mode) as infile:
-            return infile.read()
+        with self.open('r') as infile:
+            return infile.readlines()
 
     @property
     def path(self):
