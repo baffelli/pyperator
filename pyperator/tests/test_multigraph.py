@@ -127,8 +127,6 @@ class TestMultigraph(TestCase):
         shower.inputs.add(InputPort('in1'))
         graph = Multigraph()
         graph.connect(source.outputs['OUT'], shower.inputs['in1'])
-        # graph.set_initial_packet(shower.inputs['in1'],5)
-
         graph()
 
     def testSumPipeline(self):
@@ -287,7 +285,7 @@ class TestMultigraph(TestCase):
         toucher.outputs.add(FilePort('f1'))
         toucher.DynamicFormatter('f1', "{inputs.i.value}.txt")
         #Second component receives it
-        modified = components.Shell('edit', "echo 'i saw {inputs.f1.value}' > {outputs.f2.path}")
+        modified = components.Shell('edit', "echo 'i saw {inputs.f1.path}' > {outputs.f2.path}")
         modified.inputs.add(FilePort('f1'))
         modified.outputs.add(FilePort('f2'))
         modified.DynamicFormatter('f2', "{inputs.f1.path}.changes")
