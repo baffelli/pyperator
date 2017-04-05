@@ -150,7 +150,7 @@ class Multigraph:
             logging.getLogger('root').debug('Running Producers until they complete')
             loop.run_until_complete(asyncio.gather(*producers))
         except Exception as e:
-            print(e)
+            loop.close()
             raise(e)
         finally:
             try:
