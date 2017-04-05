@@ -125,7 +125,7 @@ class TestMultigraph(TestCase):
         graph()
 
     def testRecursivePipeline(self):
-        source1 = GeneratorSource('s1',  (1 for i in range(1000)))
+        source1 = GeneratorSource('s1',  (i for i in range(1000)))
         shower = ShowInputs('printer')
         shower.inputs.add(InputPort('in1'))
         summer = BroadcastApplyFunction('summer', adder )
@@ -204,7 +204,8 @@ class TestMultigraph(TestCase):
         filt = Filter('filtrator',  filter_predicate,)
         filt.inputs.add(InputPort('in1'))
         filt.outputs.add(OutputPort('out1'))
-        shower = ShowInputs('printer', inputs=['in1'])
+        shower = ShowInputs('printer')
+        shower.inputs.add(InputPort('in1'))
         graph = Multigraph()
         graph.connect(source1.outputs['OUT'], filt.inputs.in1)
         graph.connect(filt.outputs.out1, shower.inputs.in1)
