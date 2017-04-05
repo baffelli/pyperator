@@ -76,10 +76,6 @@ class Component(AbstractComponent):
         packets = {p:IP.InformationPacket(data) for p, v in self.outputs.items()}
         futures =  self.outputs.send_packets(packets)
         return futures
-        # for p_name, p in self.outputs.items():
-        #
-        #     futures.append(asyncio.ensure_future(p.send(data)))
-        # return futures
 
     async def dot(self,):
         return self.gv_node()
