@@ -73,8 +73,9 @@ class Component(AbstractComponent):
     async def close_downstream(self):
         futures = []
         for p_name, p in self.outputs.items():
-            logging.getLogger('root').debug("{} sending  close to {}".format(self.name, p_name))
+            logging.getLogger('root').debug("{} closing {}".format(self.name, p_name))
             futures.append(asyncio.ensure_future(p.close()))
+        await asyncio.wait(futures)
 
     def send_to_all(self, data):
         # Send
