@@ -120,9 +120,11 @@ class EndOfStream(InformationPacket):
         return "EOS"
 
 
-class FileExistingError(Exception):
-    pass
+class FileExistingError(BaseException):
+    def __init__(self, *args, **kwargs):
+        BaseException.__init__(self, *args, **kwargs)
 
 
-class FileNotExistingError(Exception):
-    pass
+class FileNotExistingError(BaseException):
+    def __init__(self, *args, **kwargs):
+        BaseException.__init__(self, *args, **kwargs)
