@@ -140,21 +140,21 @@ class Multigraph:
     def __call__(self):
         loop = asyncio.get_event_loop()
         #The producers are all the nodes that have no inputs
-        producers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0]
+        producers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0])
         logging.getLogger('root').debug('Producers are {}'.format(producers))
         #Consumers are scheluded
-        consumers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0]
+        consumers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0])
         logging.getLogger('root').debug('Consumers are {}'.format(consumers))
+        # try:
+        logging.getLogger('root').info('Starting DAG')
+        logging.getLogger('root').debug('Running Producers until they complete')
         try:
-            logging.getLogger('root').info('Starting DAG')
-            logging.getLogger('root').debug('Running Producers until they complete')
-            loop.run_until_complete(asyncio.gather(*producers))
+            loop.run_until_complete(producers)
         except Exception as e:
             loop.close()
-            raise(e)
         finally:
             try:
+                loop.stop()
                 logging.getLogger('root').info('Stopping DAG')
-                loop.close()
             except RuntimeError:
                 pass
