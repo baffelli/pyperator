@@ -6,6 +6,7 @@ from .. import components
 from ..nodes import Component
 import asyncio
 from ..utils import InputPort, OutputPort,ArrayPort, FilePort
+from .. import IP
 
 import os
 import uuid
@@ -26,6 +27,18 @@ async def passer(**kwargs):
     return {'delayed': kwargs.values()}
 
 source_gen = (i for i in range(100))
+
+
+class TestPacket(TestCase):
+
+    def testRepr(self):
+        a = IP.InformationPacket('a')
+        print(str(a))
+
+    def testFilePacket(self):
+        unique_file = os.path.dirname(__file__) + '/' + str(uuid.uuid4())
+        b = IP.FilePacket(unique_file)
+        print(str(b))
 
 class TestMultigraph(TestCase):
 
@@ -232,7 +245,7 @@ class TestMultigraph(TestCase):
         toucher.outputs.add(FilePort('f1'))
         toucher.inputs.add(InputPort('i'))
         toucher.inputs.add(InputPort('j'))
-        toucher.DynamicFormatter('f1', "{inputs.i.value}_{inputs.j.value}.txt")
+        toucher.DynamicFormatter('f1', "{inputs.j.value}.txt")
         printer = ShowInputs('show_path')
         printer.inputs.add(FilePort('f2'))
         graph = Multigraph()
@@ -241,40 +254,25 @@ class TestMultigraph(TestCase):
         graph.connect(toucher.outputs.f1, printer.inputs.f2)
         graph()
 
-    # def combinatorialPatternFormatter(self):
-    #     source1 = GeneratorSource('s1', (i for i in range(5)))
-    #     source2 = GeneratorSource('s2', (i for i in range(5)))
-
-    def testDoNotOverwrite(self):
-        #generate uniquefilename
-        unique_file = os.path.dirname(__file__) + '/' + 'already_exists'
-        toucher = components.Shell('shell', "touch {outputs.f1}")
+    def testPatternStages(self):
+        source1 = GeneratorSource('s1', (i for i in range(5)))
+        #First component generates file
+        toucher = components.Shell('echo', "echo '{inputs.i.value} to {outputs.f1.path}' > {outputs.f1.path}")
+        toucher.inputs.add(InputPort('i'))
         toucher.outputs.add(FilePort('f1'))
-        toucher.FixedFormatter('f1', unique_file)
-        toucher_1 = components.Shell('shell', "touch {outputs.f1}")
-        toucher_1.outputs.add(FilePort('f1'))
-        toucher_1.FixedFormatter('f1', unique_file)
-        printer = ShowInputs('show path')
-        printer.inputs.add(FilePort('f1'))
+        toucher.DynamicFormatter('f1', "{inputs.i.value}.txt")
+        #Second component receives it
+        modified = components.Shell('edit', "echo 'i saw {inputs.f1.value}' > {outputs.f2.path}")
+        modified.inputs.add(FilePort('f1'))
+        modified.outputs.add(FilePort('f2'))
+        modified.DynamicFormatter('f2', "{inputs.f1.path}.changes")
+        #Finally we need a sink to drive the network
+        printer = ShowInputs('show_path')
         printer.inputs.add(FilePort('f2'))
         graph = Multigraph()
-        graph.connect(toucher.outputs.f1, printer.inputs.f1)
-        graph.connect(toucher_1.outputs.f1, printer.inputs.f2)
+        graph.connect(source1.outputs.OUT, toucher.inputs.i)
+        graph.connect(toucher.outputs.f1, modified.inputs.f1)
+        graph.connect(modified.outputs.f2, printer.inputs.f2)
         graph()
-        self.assertTrue(os.path.exists(unique_file))
 
-    def testDynamicFormatter(self):
-        #generate uniquefilename
-        unique_file = os.path.dirname(__file__) + '/' + str(uuid.uuid4())
-        toucher = components.Shell('shell', "touch {outputs.f1}")
-        #Write something into the file
-        writer = components.Shell('add_something', 'cp {inputs.f1} {outputs.f2}')
-        writer.inputs.add(FilePort('f2'))
-        writer.outputs.add(FilePort('f3'))
-        writer.DynamicFormatter('f2', 'f3', '.a')
-        printer = ShowInputs('show path')
-        printer.inputs.add(FilePort('f1'))
-        graph = Multigraph()
-        graph.connect(toucher.outputs.f1,writer.inputs.f2)
-        graph.connect(writer.outputs.f3, printer.inputs.f1)
-        graph()
+
