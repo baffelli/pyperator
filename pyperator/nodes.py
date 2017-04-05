@@ -2,6 +2,7 @@ from .utils import InputPort, OutputPort, PortRegister
 import asyncio
 from abc import ABCMeta, abstractmethod
 from . import IP
+import logging
 
 class AbstractComponent(metaclass=ABCMeta):
     """

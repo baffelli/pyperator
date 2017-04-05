@@ -3,48 +3,21 @@ import queue as _qu
 import textwrap as _tw
 from aiohttp import web
 # from .gui import create_gui
-import logging as _log
+from . import logging as _log
+import logging
 
 from . import utils as _ut
 
-# from pyperator.utils import Connection
 
-cycle_str = 'Graph contains cycle beteween {} and {}'
-
-
-def find_path(dag, start, end, path=[]):
-    path = path + [start]
-    yield start
-    if start not in dag._nodes:
-        raise ValueError('Node does not exist')
-    if start == end:
-        return
-    for node in dag.adjacent(start):
-        if node in path:
-            raise ValueError(cycle_str.format(start, node))
-        if node not in path:
-            yield from  find_path(dag, node, end, path=path)
-
-
-def topological_sort(dag):
-    T = []
-    Q = _qu.LifoQueue()
-    # Put all elements on queue that have no predecessor
-    a = [el for el in dag.iternodes() if not el.has_predecessor]
-    print(a)
-    while not Q.empty():
-        u = Q.get()
-        print(u)
-        print(list(u.outgoing))
-        T.append(u)
-    print(T)
+_log.setup_custom_logger('root')
 
 
 class Multigraph:
-    def __init__(self, log_path=None):
+    def __init__(self):
         self._arcs = {}
         self._nodes = set()
         self._workdir = None
+        logging.getLogger('root').info("Created DAG")
 
     @property
     def workdir(self):
@@ -56,12 +29,14 @@ class Multigraph:
 
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
+        logging.getLogger('root').debug("Connecting {} to {}".format(port1,port2))
         for port in [port1, port2]:
             try:
                 if not self.hasnode(port.component):
                     self._nodes.add(port.component)
             except:
                 raise _ut.PortNotExistingException('Port {} does not exist'.format(port))
+                logging.getLogger('root').ERROR("Port {} does not exist".format(port))
         port1.connect(port2)
         self._arcs.update(port1.connect_dict)
 
@@ -74,8 +49,6 @@ class Multigraph:
 
     def hasnode(self, node):
         return node in self._nodes
-
-
 
 
     def disconnect(self, node1, node2):
@@ -168,15 +141,20 @@ class Multigraph:
         loop = asyncio.get_event_loop()
         #The producers are all the nodes that have no inputs
         producers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0]
+        logging.getLogger('root').debug('Producers are {}'.format(producers))
         #Consumers are scheluded
         consumers = [asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0]
+        logging.getLogger('root').debug('Consumers are {}'.format(consumers))
         try:
+            logging.getLogger('root').info('Starting DAG')
+            logging.getLogger('root').debug('Running Producers until they complete')
             loop.run_until_complete(asyncio.gather(*producers))
         except Exception as e:
             # print(e)
             raise(e)
         finally:
             try:
+                logging.getLogger('root').info('Stopping DAG')
                 loop.close()
             except RuntimeError:
                 pass

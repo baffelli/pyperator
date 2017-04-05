@@ -1,9 +1,13 @@
-import logging as _log
+import logging
 
-class FlowLog(object):
 
-    def __init__(self, path=None, level='AUDIT'):
-        #Get log for the application
-        self.log = _log.getLogger('Pype.log')
-        self.log.setLevel(_log.DEBUG)
-        fh = logging.
+def setup_custom_logger(name):
+    formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    return logger

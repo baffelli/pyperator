@@ -1,5 +1,5 @@
 from .nodes import Component
-from .utils import Port, ArrayPort,InputPort, OutputPort
+from .utils import Port, ArrayPort,InputPort, OutputPort, Wildcards
 import asyncio
 import itertools
 from collections import namedtuple as _nt
@@ -7,6 +7,8 @@ from . import IP
 
 import subprocess as _sub
 
+
+import logging
 
 class FormatterError(Exception):
     pass
@@ -151,8 +153,8 @@ class ShowInputs(Component):
     async def __call__(self):
         while True:
             packets = await self.receive_packets()
-            st = " ".join(["From {port}: {p.value}".format(port=port, p=packet) for port, packet in packets.items()])
-            print(st)
+            # st = " ".join(["From {port}: {p.value}".format(port=port, p=packet) for port, packet in packets.items()])
+            # print(st)
             # print(map("{p.value}".format(p=packets)))
             await asyncio.sleep(0)
 
@@ -189,9 +191,11 @@ class Shell(Component):
         for out, out_port in self.outputs.items():
             try:
                 outputs[out] = self.output_formatters[out].format(inputs=inputs, outputs=outputs)
+                logging.getLogger('root').debug("{}: Output port {} will produce file '{}'".format(self.name, out_port, outputs[out]))
                 packets[out] = IP.FilePacket(outputs[out])
                 #If any file with the same name exists
                 if packets[out].exists:
+                    logging.getLogger('root').debug("{}: Output file '{}' exist".format(self.name, packets[out].path))
                     existing = True
             except Exception as e:
                 raise FormatterError('Port {} does not have a path formatter specified'.format(out))
@@ -203,13 +207,15 @@ class Shell(Component):
         while True:
             #Wait for all upstram to be completed
             received_packets = await self.receive_packets()
-            print(received_packets)
             #If the packet exists, we skip
             inputs, outputs, packets , existing = self.format_paths(received_packets)
             if not existing:
                 formatted_cmd = self.cmd.format(inputs=inputs, outputs=outputs)
+                logging.getLogger('root').debug("Executing command {}".format(formatted_cmd))
                 #Run subprocess
                 proc = _sub.Popen(formatted_cmd, shell=True)
+            else:
+                logging.getLogger('root').debug("{}: Skipping command because output files exist".format(self.name))
             await asyncio.wait(self.send_packets(packets))
             await asyncio.sleep(0)
 
