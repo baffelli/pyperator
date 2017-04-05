@@ -128,12 +128,11 @@ class Port:
             logging.getLogger('root').debug("{} received {} from {}".format(self.component, packet, self.name))
             self.queue.task_done()
             if packet.is_eos:
-                logging.getLogger('root').debug("{} stopping".format(self.component))
+                logging.getLogger('root').info("{} stopping".format(self.component))
                 raise StopComputation('Done')
                 # await asyncio.sleep(0)
             else:
                 return packet
-
 
     async def close(self):
         packet = EndOfStream()
@@ -166,42 +165,6 @@ class Port:
 
 
 
-
-
-# class ArrayPort(Port):
-#     def __init__(self, name, size=1, component=None):
-#         super(ArrayPort, self).__init__(name, size=size, component=component)
-#         self.other = []
-#         self.packet_factory = InformationPacket
-#
-#     @property
-#     def connect_dict(self):
-#         return {self: [other for other in self.other]}
-#
-#     def iterends(self):
-#         yield from self.other
-#
-#     def connect(self, other_port):
-#         if other_port not in self.other:
-#             self.other.append(other_port)
-#             other_port.connect(self)
-#
-#     async def send_packet(self, packet):
-#         if self.is_connected:
-#             for other in self.other:
-#                 logging.getLogger('root').debug("{} sending {} to {}".format(self.component, str(packet), self.name))
-#                 await other.queue.put(packet)
-#
-#     async def send(self, data):
-#         if self.is_connected:
-#             for other in self.other:
-#                 packet = self.packet_factory(data)
-#                 packet.owner = self.component
-#                 await other.queue.put(packet)
-#         else:
-#             return
-
-
 class FilePort(Port):
     """
     This is a port used in shell commands
@@ -227,8 +190,9 @@ class FilePort(Port):
 
 
 class OutputPort(Port):
-    async def receive_packet(self, packet):
-        return
+    pass
+    # async def receive_packet(self, packet):
+    #     return
 
 
 class InputPort(Port):
