@@ -227,6 +227,7 @@ class Shell(Component):
                 if proc.returncode != 0:
                     ext_str = "{}: running command '{}' failed with output: \n {}".format(self.name, formatted_cmd, stderr.strip())
                     logging.getLogger('root').error(ext_str)
+                    await self.close_downstream()
                     raise CommandFailedError(ext_str)
                 else:
                     success_str = "{}: command successfully run, with output: {}".format(self.name, stdout)
