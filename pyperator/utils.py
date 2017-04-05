@@ -5,6 +5,8 @@ import pyparsing as _pp
 
 from .IP import InformationPacket, EndOfStream, FilePacket
 
+from . import IP
+
 import re as _re
 
 conn_template = "{component}:{name}"
@@ -53,13 +55,20 @@ class Wildcards(object):
 class PortNotExistingException(Exception):
     pass
 
+class StopComputation(StopIteration):
+    pass
+
+
+class PortDisconnectedError(Exception):
+    pass
 
 class Port:
     def __init__(self, name, size=-1, component=None, blocking=False):
         self.name = name
         self.component = component
-        self.other = None
+        self.other = []
         self.queue = asyncio.Queue()
+        self.packet_factory = InformationPacket
 
     def set_initial_packet(self, value):
         logging.getLogger('root').debug("Set initial message for {} at port {}".format(self.name, self.component))
@@ -72,84 +81,6 @@ class Port:
         value = packet.value
         packet.drop()
         return value
-
-    async def send(self, value):
-        packet = InformationPacket(value)
-        packet.owner = self.component
-        await self.send_packet(value)
-
-    async def send_packet(self, packet):
-        logging.getLogger('root').debug("{} sending to {}".format(self.component, self.name))
-        await self.other.queue.put(packet)
-
-    async def receive_packet(self):
-        if self.is_connected:
-            logging.getLogger('root').debug("{} receiving at {}".format(self.component, self.name))
-            packet = await self.queue.get()
-            logging.getLogger('root').debug("{} received from {}".format(self.component, self.name))
-            self.queue.task_done()
-            if packet.is_eos:
-                logging.getLogger('root').debug("{} received  close from {}".format(self.component, self.name))
-                await asyncio.sleep(0)
-            else:
-                return packet
-        else:
-            return
-
-    async def close(self):
-        logging.getLogger('root').debug("{} sending close".format(self.component))
-        packet = EndOfStream()
-        await self.other.queue.put(packet)
-
-    async def done(self):
-        self.other.queue.join()
-
-    @property
-    def path(self):
-        return None
-
-    @path.setter
-    def path(self, path):
-        pass
-
-    @property
-    def is_connected(self):
-        if self.other is not None:
-            return True
-        else:
-            return False
-
-    def __repr__(self):
-        port_template = "Port {component}:{name}"
-        if self.other:
-            formatted = port_template.format(**self.__dict__)
-        else:
-            formatted = port_template.format(**self.__dict__) + ', disconnected'
-        return formatted
-
-    def gv_string(self):
-        return conn_template.format(**self.__dict__)
-
-    def connect(self, other_port):
-        self.other = other_port
-        if not self.other:
-            other_port.connect(self)
-
-    @property
-    def connect_dict(self):
-        return {self: self.other}
-
-    def iterends(self):
-        yield self.other
-
-
-
-
-class ArrayPort(Port):
-    def __init__(self, name, size=1, component=None):
-        super(ArrayPort, self).__init__(name, size=size, component=component)
-        self.other = []
-        self.packet_factory = InformationPacket
 
     @property
     def connect_dict(self):
@@ -165,9 +96,18 @@ class ArrayPort(Port):
 
     async def send_packet(self, packet):
         if self.is_connected:
-            for other in self.other:
-                logging.getLogger('root').debug("{} sending to {}".format(self.component, self.name))
-                await other.queue.put(packet)
+            if packet.exists:
+                for other in self.other:
+                    logging.getLogger('root').debug("{} sending {} to {}".format(self.component, str(packet), self.name))
+                    await other.queue.put(packet)
+            else:
+                ex_str = 'The information packet with path {} does not exist'.format(packet.path)
+                logging.getLogger('root').error(ex_str)
+                raise IP.FileNotExistingError(ex_str)
+        else:
+            ex_str = '{} is not connected'.format(self.name)
+            logging.getLogger('root').error(ex_str)
+            raise PortDisconnectedError(ex_str)
 
     async def send(self, data):
         if self.is_connected:
@@ -178,14 +118,88 @@ class ArrayPort(Port):
         else:
             return
 
-    async def close(self):
+    async def receive_packet(self):
         if self.is_connected:
-            for other in self.other:
-                packet = EndOfStream()
-                asyncio.ensure_future(other.queue.put(packet))
+            logging.getLogger('root').debug("{} receiving at {}".format(self.component, self.name))
+            packet = await self.queue.get()
+            logging.getLogger('root').debug("{} received {} from {}".format(self.component, packet, self.name))
+            self.queue.task_done()
+            if packet.is_eos:
+                logging.getLogger('root').debug("{} stopping".format(self.component))
+                raise StopComputation('Done')
+                # await asyncio.sleep(0)
+            else:
+                return packet
 
 
-class FilePort(ArrayPort):
+    async def close(self):
+        packet = EndOfStream()
+        await self.send_packet(packet)
+
+
+    @property
+    def path(self):
+        return None
+
+    @path.setter
+    def path(self, path):
+        pass
+
+    @property
+    def is_connected(self):
+        if self.other is not []:
+            return True
+        else:
+            return False
+
+    def __repr__(self):
+        port_template = "Port {component}:{name}"
+        formatted = port_template.format(**self.__dict__)
+        return formatted
+
+    def gv_string(self):
+        return conn_template.format(**self.__dict__)
+
+
+
+
+
+
+# class ArrayPort(Port):
+#     def __init__(self, name, size=1, component=None):
+#         super(ArrayPort, self).__init__(name, size=size, component=component)
+#         self.other = []
+#         self.packet_factory = InformationPacket
+#
+#     @property
+#     def connect_dict(self):
+#         return {self: [other for other in self.other]}
+#
+#     def iterends(self):
+#         yield from self.other
+#
+#     def connect(self, other_port):
+#         if other_port not in self.other:
+#             self.other.append(other_port)
+#             other_port.connect(self)
+#
+#     async def send_packet(self, packet):
+#         if self.is_connected:
+#             for other in self.other:
+#                 logging.getLogger('root').debug("{} sending {} to {}".format(self.component, str(packet), self.name))
+#                 await other.queue.put(packet)
+#
+#     async def send(self, data):
+#         if self.is_connected:
+#             for other in self.other:
+#                 packet = self.packet_factory(data)
+#                 packet.owner = self.component
+#                 await other.queue.put(packet)
+#         else:
+#             return
+
+
+class FilePort(Port):
     """
     This is a port used in shell commands
     that exchanges FilePackets instead of regular
@@ -205,23 +219,16 @@ class FilePort(ArrayPort):
     def path(self, path):
         self._path = path
 
-    # async def send(self, data):
-    #     packet = FilePacket(self.path, mode='rw+')
-    #     packet.owner = self.component
-    #     await self.send_packet(packet)
-
-    # async def send_packet(self, packet):
-    #     logging.getLogger('root').debug("{} sending to {}".format(self.component, self.name))
-    #     await self.other.queue.put(packet)
 
 
 
-class OutputPort(ArrayPort):
+
+class OutputPort(Port):
     async def receive(self):
         return
 
 
-class InputPort(ArrayPort):
+class InputPort(Port):
     async def send(self, data):
         return
 
