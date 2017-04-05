@@ -10,12 +10,14 @@ from .nodes import Component
 from .utils import InputPort, OutputPort
 
 
-class FormatterError(Exception):
-    pass
+class FormatterError(BaseException):
+    def __init__(self, *args, **kwargs):
+        BaseException.__init__(self, *args, **kwargs)
 
 
-class CommandFailedError(Exception):
-    pass
+class CommandFailedError(BaseException):
+    def __init__(self, *args, **kwargs):
+        BaseException.__init__(self, *args, **kwargs)
 
 
 class GeneratorSource(Component):
@@ -226,12 +228,8 @@ class Shell(Component):
                     ext_str = "{}: running command '{}' failed with output: \n {}".format(self.name, formatted_cmd, stderr.strip())
                     logging.getLogger('root').error(ext_str)
                     raise CommandFailedError(ext_str)
-                    await asyncio.sleep(0)
+                    await asyncio.sleep(1110)
                 else:
-                    pass
-                    # ext_str = "{}: running command '{}' sucessfull with output: \n {}".format(self.name, formatted_cmd,
-                    #                                                                       stdout.strip())
-                    # print(stdout)
                     success_str = "{}: command successfully run, with output: {}".format(self.name, stdout)
                     logging.getLogger('root').info(success_str)
                 # Check if the output files exist
