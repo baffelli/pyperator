@@ -7,6 +7,8 @@ from .IP import InformationPacket, EndOfStream, FilePacket
 
 from . import IP
 
+import functools as _ft
+
 import re as _re
 
 conn_template = "{component}:{name}"
@@ -49,6 +51,13 @@ class Wildcards(object):
         self.__dict__.update(wc_dic)
 
 
+def log_schedule(method):
+
+    def inner(instance):
+        instance._log.info('Component {}: Scheduled'.format(instance.name))
+        return method(instance)
+
+    return inner
 
 
 
@@ -64,6 +73,7 @@ class PortDisconnectedError(Exception):
 
 class MultipleConnectionError(Exception):
     pass
+
 
 class Port:
     def __init__(self, name, size=-1, component=None, blocking=False):

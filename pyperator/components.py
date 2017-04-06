@@ -7,7 +7,8 @@ from pyperator.IP import FileNotExistingError
 
 from . import IP
 from .nodes import Component
-from .utils import InputPort, OutputPort
+from .utils import InputPort, OutputPort, log_schedule
+
 
 
 class FormatterError(BaseException):
@@ -31,6 +32,7 @@ class GeneratorSource(Component):
         self._gen = generator
         self.outputs.add(OutputPort(output))
 
+    @log_schedule
     async def __call__(self):
         for g in self._gen:
             # We dont need to wait for incoming data
@@ -51,6 +53,7 @@ class Split(Component):
         # [self.outputs.add(OutputPort('OUT{n}'.format(n=n))) for n in range(n_outs)]
         self.inputs.add(InputPort('IN'))
 
+    @log_schedule
     async def __call__(self):
         while True:
             data = await self.inputs.IN.receive_packet()
@@ -82,6 +85,7 @@ class ConstantSource(Component):
         self.repeat = repeat
         [self.outputs.add(OutputPort(output_name)) for output_name in outputs]
 
+    @log_schedule
     async def __call__(self):
         for i in itertools.count():
             if self.repeat and i >= self.repeat:
@@ -101,6 +105,7 @@ class Filter(Component):
         super(Filter, self).__init__(name)
         self._predicate = predicate
 
+    @log_schedule
     async def __call__(self):
         while True:
             data = await self.receive()
@@ -125,6 +130,7 @@ class BroadcastApplyFunction(Component):
         super(BroadcastApplyFunction, self).__init__(name)
         self.function = function
 
+    @log_schedule
     async def __call__(self):
         while True:
             data = await self.receive()
@@ -142,6 +148,7 @@ class OneOffProcess(BroadcastApplyFunction):
     def __init__(self, name, function):
         super(OneOffProcess, self).__init__(name, function)
 
+    @log_schedule
     async def __call__(self):
         # wait once for the data
         data = await self.receive()
@@ -156,16 +163,14 @@ class ShowInputs(Component):
     def __init__(self, name):
         super(ShowInputs, self).__init__(name)
 
+    @log_schedule
     async def __call__(self):
         while True:
             packets = await self.receive_packets()
             show_str = "Component {} saw:\n".format(self.name) + "\n".join([str(p) for p in packets.values()])
             self._log.debug(show_str)
             print(show_str)
-            # st = " ".join(["From {port}: {p.value}".format(port=port, p=packet) for port, packet in packets.items()])
-            # print(st)
-            # print(map("{p.value}".format(p=packets)))
-            # await asyncio.sleep(0)
+
 
 
 class Shell(Component):
@@ -214,6 +219,7 @@ class Shell(Component):
         outputs = type('outputs', (object,), packets)
         return inputs, outputs, packets, existing
 
+    @log_schedule
     async def __call__(self):
         while True:
             # Wait for all upstram to be completed
