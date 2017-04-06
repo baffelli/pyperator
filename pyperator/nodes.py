@@ -81,7 +81,7 @@ class Component(AbstractComponent):
     def send_to_all(self, data):
         # Send
         self._log.debug("Component {}: sending '{}' to all output ports".format(self.name, data))
-        packets = {p:IP.InformationPacket(data) for p, v in self.outputs.items()}
+        packets = {p:IP.InformationPacket(data, owner=self) for p, v in self.outputs.items()}
         futures =  self.outputs.send_packets(packets)
         return futures
 
