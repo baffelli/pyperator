@@ -56,7 +56,7 @@ class Split(Component):
             data = await self.inputs.IN.receive()
             for index_port, ((data_item), (output_port_name, output_port)) in enumerate(
                     zip(data, self.outputs.items())):
-                asyncio.ensure_future(output_port.send(data_item))
+                await output_port.send(data_item)
             await asyncio.sleep(0)
 
 
@@ -86,7 +86,7 @@ class ConstantSource(Component):
                 return
             else:
                 await asyncio.wait(self.send_to_all(self.constant))
-                await asyncio.sleep(0)
+                # await asyncio.sleep(0)
 
 
 class Filter(Component):
