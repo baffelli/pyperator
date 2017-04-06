@@ -180,16 +180,7 @@ class FilePort(Port):
         super(FilePort, self).__init__(name, component=component)
         self._path = None
         self.packet_factory = FilePacket
-    #
-    # @property
-    # def path(self):
-    #     return self._path
-    #
-    # @path.setter
-    # def path(self, path):
-    #     self._path = path
-    #
-    # def send(self, data):
+
 
 
 
@@ -197,20 +188,7 @@ class FilePort(Port):
 
 class OutputPort(Port):
     pass
-    # async def receive_packet(self, packet):
-    #     return
 
-
-# class IIP(Port):
-#
-#     def __init__(self,name, value, **kwargs):
-#         Port.__init__(self, name, **kwargs)
-#         self.value = value
-#
-#     async def receive_packet(self):
-#         pass
-#
-#     async def send_packet(self, packet):
 
 
 class InputPort(Port):
