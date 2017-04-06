@@ -115,7 +115,7 @@ class Port:
     async def send_packet(self, packet):
         if self.is_connected:
             if packet.exists:
-                if packet.owner is self.component :
+                if packet.owner == self.component or packet.owner == None:
                     for other in self.other:
                         self.component._log.debug("Component {}: sending {} to {}".format(self.component, str(packet), self.name))
                         await other.queue.put(packet)
