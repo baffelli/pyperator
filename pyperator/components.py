@@ -53,9 +53,11 @@ class Split(Component):
 
     async def __call__(self):
         while True:
-            data = await self.inputs.IN.receive()
+            data = await self.inputs.IN.receive_packet()
+            self._log.debug(
+                "Component {}: Splitting '{}'".format(self.name, data))
             for index_port, ((data_item), (output_port_name, output_port)) in enumerate(
-                    zip(data, self.outputs.items())):
+                    zip(data.value, self.outputs.items())):
                 await output_port.send(data_item)
             await asyncio.sleep(0)
 
@@ -157,7 +159,9 @@ class ShowInputs(Component):
     async def __call__(self):
         while True:
             packets = await self.receive_packets()
-            print("".join([str(p) for p in packets.values()]))
+            show_str = "Component {} saw:\n".format(self.name) + "\n".join([str(p) for p in packets.values()])
+            self._log.debug(show_str)
+            print(show_str)
             # st = " ".join(["From {port}: {p.value}".format(port=port, p=packet) for port, packet in packets.items()])
             # print(st)
             # print(map("{p.value}".format(p=packets)))
@@ -196,16 +200,16 @@ class Shell(Component):
         for out, out_port in self.outputs.items():
             try:
                 outputs[out] = self.output_formatters[out].format(inputs=inputs, outputs=outputs)
-                logging.getLogger('root').debug(
+                self._log.debug(
                     "Component {}: Output port {} will produce file '{}'".format(self.name, out_port, outputs[out]))
                 packets[out] = IP.FilePacket(outputs[out])
                 # If any file with the same name exists
                 if packets[out].exists:
-                    logging.getLogger('root').debug("Component {}: Output file '{}' exist".format(self.name, packets[out].path))
+                    self._log.debug("Component {}: Output file '{}' exist".format(self.name, packets[out].path))
                     existing = True
             except Exception as e:
                 ex_text = 'Component {}: Port {} does not have a path formatter specified'.format(self.name, out)
-                logging.getLogger('root').error(ex_text)
+                self._log.error(ex_text)
                 raise FormatterError(ex_text)
         outputs = type('outputs', (object,), packets)
         return inputs, outputs, packets, existing
@@ -218,7 +222,7 @@ class Shell(Component):
             inputs, outputs, packets, existing = self.format_paths(received_packets)
             if not existing:
                 formatted_cmd = self.cmd.format(inputs=inputs, outputs=outputs)
-                logging.getLogger('root').debug("Executing command {}".format(formatted_cmd))
+                self._log.debug("Executing command {}".format(formatted_cmd))
                 # Define stdout and stderr pipes
                 stdout = _sub.PIPE
                 stderr = _sub.PIPE
@@ -226,20 +230,20 @@ class Shell(Component):
                 stdoud, stderr = proc.communicate()
                 if proc.returncode != 0:
                     ext_str = "Component {}: running command '{}' failed with output: \n {}".format(self.name, formatted_cmd, stderr.strip())
-                    logging.getLogger('root').error(ext_str)
+                    self._log.error(ext_str)
                     # await self.close_downstream()
                     raise CommandFailedError(ext_str)
                 else:
                     success_str = "Component {}: command successfully run, with output: {}".format(self.name, stdout)
-                    logging.getLogger('root').info(success_str)
+                    self._log.info(success_str)
                 # Check if the output files exist
                 for k, p in packets.items():
                     if not p.exists:
                         ex_str = 'Component {name}: File {p.path} does not exist'.format(name=self.name, p=p)
-                        logging.getLogger('root').error(ex_str)
+                        self._log.error(ex_str)
                         raise FileNotExistingError(ex_str)
             else:
-                logging.getLogger('root').debug("Component {}: Skipping command because output files exist".format(self.name))
+                self._log.debug("Component {}: Skipping command because output files exist".format(self.name))
             await asyncio.wait(self.send_packets(packets))
             await asyncio.sleep(0)
 
