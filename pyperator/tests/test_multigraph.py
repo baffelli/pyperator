@@ -158,7 +158,8 @@ class TestMultigraph(TestCase):
         graph.connect(source1.outputs.OUT, summer.inputs.g1)
         graph.connect(summer.outputs.sum, shower.inputs.in1)
         graph.connect(summer.outputs.sum, summer.inputs.recursion)
-        graph.set_initial_packet(summer.inputs.recursion, 1)
+        #Add a kickstarter to a port
+        graph.set_kickstarter(summer.inputs.recursion)
         with open('/home/baffelli/recursion.dot','w+') as outfile:
             outfile.write(graph.dot())
         graph()
@@ -249,12 +250,26 @@ class TestMultigraph(TestCase):
     def testPatternFormatter(self):
         #Source
         source1 = GeneratorSource('s1', (i for i in range(5)))
+        toucher = components.Shell('shell', "echo '{inputs.i.value}, {inputs.i.value} to {outputs.f1.path}' > {outputs.f1.path}")
+        toucher.outputs.add(FilePort('f1'))
+        toucher.inputs.add(InputPort('i'))
+        toucher.DynamicFormatter('f1', "{inputs.i.value}.txt")
+        printer = ShowInputs('show_path')
+        printer.inputs.add(FilePort('f2'))
+        graph = Multigraph()
+        graph.connect(source1.outputs.OUT, toucher.inputs.i)
+        graph.connect(toucher.outputs.f1, printer.inputs.f2)
+        graph()
+
+    def testCombinatorialFormatter(self):
+        #Source
+        source1 = GeneratorSource('s1', (i for i in range(5)))
         source2 = GeneratorSource('s2', (i for i in range(5)))
-        toucher = components.Shell('shell', "echo '{inputs.i.value}, {inputs.j.value} to {outputs.f1.path}' > {outputs.f1.path}")
+        toucher = components.Shell('shell', "echo '{inputs.i.value}, {inputs.j.value}' > {outputs.f1.path}")
         toucher.outputs.add(FilePort('f1'))
         toucher.inputs.add(InputPort('i'))
         toucher.inputs.add(InputPort('j'))
-        toucher.DynamicFormatter('f1', "{inputs.j.value}.txt")
+        toucher.DynamicFormatter('f1', "{inputs.j.value}_{inputs.i.value}.txt1")
         printer = ShowInputs('show_path')
         printer.inputs.add(FilePort('f2'))
         graph = Multigraph()
@@ -272,7 +287,7 @@ class TestMultigraph(TestCase):
         toucher.DynamicFormatter('f1', "{inputs.i.value}.test")
         printer = ShowInputs('show_path')
         printer.inputs.add(FilePort('f2'))
-        graph = Multigraph()
+        graph = Multigraph(log_path='fail.log')
         graph.connect(source1.outputs.OUT, toucher.inputs.i)
         graph.connect(toucher.outputs.f1, printer.inputs.f2)
         graph()
