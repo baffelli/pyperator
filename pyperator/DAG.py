@@ -8,18 +8,21 @@ import logging
 
 from . import utils as _ut
 
+import os as _os
+
 from . import nodes
 
-
+import __main__ as main
 
 
 class Multigraph:
-    def __init__(self, log_path=None, name=None):
+    def __init__(self, log_path=None, name=None, log_level=logging.DEBUG):
         self._arcs = {}
         self._nodes = set()
         self._workdir = None
-        self.name = name
-        self._log = _log.setup_custom_logger(self.name, file=log_path)
+        self._log_path = log_path or main.__file__.replace('.py', '.log')
+        self.name = name or _os.path.basename(main.__file__)
+        self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
         self._log.info("Created DAG")
 
     @property
@@ -46,8 +49,11 @@ class Multigraph:
         self._arcs.update(port1.connect_dict)
 
     def set_initial_packet(self, port, value):
-        ports = [dest for (source, dest) in self.iterarcs() if dest==port]
         port.set_initial_packet(value)
+
+    def set_kickstarter(self, port):
+        port.kickstart()
+
 
     def hasarc(self, node1, node2, outport, inport):
         return node1 in self._arcs and {node2: (outport, inport)} in self._arcs[node1]
@@ -144,14 +150,14 @@ class Multigraph:
 
     def __call__(self):
         loop = asyncio.get_event_loop()
+        self._log.info('DAG {}: Starting DAG'.format(self.name))
         #The producers are all the nodes that have no inputs
         producers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0])
-        self._log.debug('DAG {}: Producers are {}'.format(self.name, producers))
+        self._log.info('DAG {}: Producers are {}'.format(self.name, producers))
         #Consumers are scheluded
         consumers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0])
-        self._log.debug('DAG {}: Consumers are {}'.format(self.name, consumers))
-        self._log.info('DAG {}: Starting DAG'.format(self.name))
-        self._log.debug('DAG {}: Scheduling tasks'.format(self.name))
+        self._log.info('DAG {}: Consumers are {}'.format(self.name, consumers))
+        self._log.debug('DAG {}: Running Tasks'.format(self.name))
         try:
             loop.run_until_complete(producers)
             loop.run_until_complete(consumers)
@@ -160,11 +166,12 @@ class Multigraph:
             self._log.info('DAG {}: Stopping DAG by cancelling scheduled tasks'.format(self.name))
             if not loop.is_closed():
                 task = asyncio.Task.all_tasks()
-                asyncio.wait(task).cancel()
+                future =asyncio.gather(*(task))
+                future.cancel()
                 # consumers.cancel()
         finally:
             if loop.is_running():
                 loop.stop()
-                self._log.info('Stopping DAG')
-            self._log.info('DAG Stopped')
+                self._log.info('DAG {}: Stopping DAG'.format(self.name))
+            self._log.info('DAG {}: Stopped'.format(self.name))
 
