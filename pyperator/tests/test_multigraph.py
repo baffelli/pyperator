@@ -129,6 +129,14 @@ class TestMultigraph(TestCase):
         graph.connect(source.outputs['OUT'], shower.inputs['in1'])
         graph()
 
+    def testProductSource(self):
+        source = components.GeneratorProductSource('s', source_gen, source_gen)
+        shower = ShowInputs('printer')
+        shower.inputs.add(InputPort('in1'))
+        graph = Multigraph()
+        graph.connect(source.outputs['OUT'], shower.inputs['in1'])
+        graph()
+
     def testSumPipeline(self):
         source1 = GeneratorSource('s1',  (i for i in range(100)))
         source2 = GeneratorSource('s2',  (i for i in range(100)))
@@ -204,7 +212,7 @@ class TestMultigraph(TestCase):
         graph()
 
     def testSplit(self):
-        source1 = ConstantSource('s1', (3,5))
+        source1 = components.IterSource('s1', (i for i in range(3)),(i for i in range(3)),)
         splitter = components.Split('split in two')
         splitter.outputs.add(OutputPort('a'))
         splitter.outputs.add(OutputPort('b'))
