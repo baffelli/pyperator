@@ -10,9 +10,9 @@ import tempfile
 
 class InformationPacket(object):
 
-    def __init__(self, value):
+    def __init__(self, value, owner=None):
         self._value = value
-        self._owner = None
+        self._owner = owner
 
     def drop(self):
         del self
@@ -69,8 +69,8 @@ class InformationPacket(object):
 
 class FilePacket(InformationPacket):
 
-    def __init__(self, path, mode='r'):
-        super(FilePacket, self).__init__(None)
+    def __init__(self, path, mode='r', owner=None):
+        super(FilePacket, self).__init__(None, owner=owner)
         self._path = path
         self.mode = mode
         self.tempfile = tempfile.TemporaryFile()
