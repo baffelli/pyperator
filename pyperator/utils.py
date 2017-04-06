@@ -101,15 +101,15 @@ class Port:
         if self.is_connected:
             if packet.exists:
                 for other in self.other:
-                    logging.getLogger('root').debug("{} sending {} to {}".format(self.component, str(packet), self.name))
+                    self.component._log.debug("{} sending {} to {}".format(self.component, str(packet), self.name))
                     await other.queue.put(packet)
             else:
                 ex_str = 'The information packet with path {} does not exist'.format(packet.path)
-                logging.getLogger('root').error(ex_str)
+                self.component._log.error(ex_str)
                 raise IP.FileNotExistingError(ex_str)
         else:
             ex_str = '{} is not connected'.format(self.name)
-            logging.getLogger('root').error(ex_str)
+            # logging.getLogger('root').error(ex_str)
             raise PortDisconnectedError(ex_str)
 
     async def send(self, data):
@@ -123,12 +123,12 @@ class Port:
 
     async def receive_packet(self):
         if self.is_connected:
-            logging.getLogger('root').debug("{} receiving at {}".format(self.component, self.name))
+            self.component._log.debug("{} receiving at {}".format(self.component, self.name))
             packet = await self.queue.get()
             logging.getLogger('root').debug("{} received {} from {}".format(self.component, packet, self.name))
             self.queue.task_done()
             if packet.is_eos:
-                logging.getLogger('root').info("{} stopping".format(self.component))
+                self.component._log.info("{} stopping".format(self.component))
                 raise StopComputation('Done')
                 # await asyncio.sleep(0)
             else:
@@ -207,7 +207,7 @@ class InputPort(Port):
             self._n_ohter +=1
         else:
             ext_text = "A {} only supports one incoming connection".format(type(self))
-            logging.getLogger('root').error(ext_text)
+            self.component._log.error(ext_text)
             raise MultipleConnectionError(ext_text)
 
     async def send_packet(self, packet):

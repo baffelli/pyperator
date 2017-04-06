@@ -8,8 +8,9 @@ import logging
 
 from . import utils as _ut
 
+from . import nodes
 
-_log.setup_custom_logger('root')
+
 
 
 class Multigraph:
@@ -17,7 +18,8 @@ class Multigraph:
         self._arcs = {}
         self._nodes = set()
         self._workdir = None
-        logging.getLogger('root').info("Created DAG")
+        self._log = _log.setup_custom_logger('root')
+        self._log.info("Created DAG")
 
     @property
     def workdir(self):
@@ -29,14 +31,16 @@ class Multigraph:
 
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
-        logging.getLogger('root').debug("Connecting {} to {}".format(port1,port2))
+        self._log.debug("Connecting {} to {}".format(port1,port2))
         for port in [port1, port2]:
             try:
+                #Add log to every component
+                port.component._log = self._log
                 if not self.hasnode(port.component):
                     self._nodes.add(port.component)
             except:
                 raise _ut.PortNotExistingException('Port {} does not exist'.format(port))
-                logging.getLogger('root').ERROR("Port {} does not exist".format(port))
+                self._log.ERROR("Port {} does not exist".format(port))
         port1.connect(port2)
         self._arcs.update(port1.connect_dict)
 
@@ -141,25 +145,25 @@ class Multigraph:
         loop = asyncio.get_event_loop()
         #The producers are all the nodes that have no inputs
         producers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0])
-        logging.getLogger('root').debug('Producers are {}'.format(producers))
+        self._log.debug('Producers are {}'.format(producers))
         #Consumers are scheluded
         consumers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0])
-        logging.getLogger('root').debug('Consumers are {}'.format(consumers))
+        self._log.debug('Consumers are {}'.format(consumers))
         # try:
-        logging.getLogger('root').info('Starting DAG')
-        logging.getLogger('root').debug('Running Producers until they complete')
+        self._log.info('Starting DAG')
+        self._log.debug('Running Producers until they complete')
         try:
             loop.run_until_complete(producers)
             loop.run_until_complete(consumers)
         except Exception as e:
             print(e)
-            logging.getLogger('root').error(e)
-            logging.getLogger('root').info('Stopping DAG by closing consumers')
+            self._log.error(e)
+            self._log.info('Stopping DAG by closing consumers')
             if not loop.is_closed():
                 # producers.cancel()
                 consumers.cancel()
         finally:
             if loop.is_running():
                 loop.stop()
-                logging.getLogger('root').info('Stopping DAG')
+                self._log.info('Stopping DAG')
 
