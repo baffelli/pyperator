@@ -101,10 +101,10 @@ class Port:
         if self.is_connected:
             if packet.exists:
                 for other in self.other:
-                    self.component._log.debug("{} sending {} to {}".format(self.component, str(packet), self.name))
+                    self.component._log.debug("Component {}: sending {} to {}".format(self.component, str(packet), self.name))
                     await other.queue.put(packet)
             else:
-                ex_str = 'The information packet with path {} does not exist'.format(packet.path)
+                ex_str = 'Component {}, Port {}: The information packet with path {} does not exist'.format(self.component, self.port, packet.path)
                 self.component._log.error(ex_str)
                 raise IP.FileNotExistingError(ex_str)
         else:
@@ -123,14 +123,13 @@ class Port:
 
     async def receive_packet(self):
         if self.is_connected:
-            self.component._log.debug("{} receiving at {}".format(self.component, self.name))
+            self.component._log.debug("Component {}: receiving at {}".format(self.component, self.name))
             packet = await self.queue.get()
-            logging.getLogger('root').debug("{} received {} from {}".format(self.component, packet, self.name))
+            logging.getLogger('root').debug("Component {}: received {} from {}".format(self.component, packet, self.name))
             self.queue.task_done()
             if packet.is_eos:
-                self.component._log.info("{} stopping".format(self.component))
+                self.component._log.info("Component {}: stopping because {} was received".format(self.component, packet))
                 raise StopComputation('Done')
-                # await asyncio.sleep(0)
             else:
                 return packet
 
@@ -206,7 +205,7 @@ class InputPort(Port):
             super(InputPort, self).connect(other_port)
             self._n_ohter +=1
         else:
-            ext_text = "A {} only supports one incoming connection".format(type(self))
+            ext_text = "A {} port only supports one incoming connection".format(type(self))
             self.component._log.error(ext_text)
             raise MultipleConnectionError(ext_text)
 

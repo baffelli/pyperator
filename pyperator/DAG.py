@@ -14,11 +14,12 @@ from . import nodes
 
 
 class Multigraph:
-    def __init__(self):
+    def __init__(self, log_path=None, name=None):
         self._arcs = {}
         self._nodes = set()
         self._workdir = None
-        self._log = _log.setup_custom_logger('root')
+        self.name = name
+        self._log = _log.setup_custom_logger(self.name, file=log_path)
         self._log.info("Created DAG")
 
     @property
@@ -31,7 +32,7 @@ class Multigraph:
 
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
-        self._log.debug("Connecting {} to {}".format(port1,port2))
+        self._log.debug("DAG {}: Connecting {} to {}".format(self.name, port1,port2))
         for port in [port1, port2]:
             try:
                 #Add log to every component
@@ -145,25 +146,25 @@ class Multigraph:
         loop = asyncio.get_event_loop()
         #The producers are all the nodes that have no inputs
         producers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0])
-        self._log.debug('Producers are {}'.format(producers))
+        self._log.debug('DAG {}: Producers are {}'.format(self.name, producers))
         #Consumers are scheluded
         consumers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0])
-        self._log.debug('Consumers are {}'.format(consumers))
-        # try:
-        self._log.info('Starting DAG')
-        self._log.debug('Running Producers until they complete')
+        self._log.debug('DAG {}: Consumers are {}'.format(self.name, consumers))
+        self._log.info('DAG {}: Starting DAG'.format(self.name))
+        self._log.debug('DAG {}: Scheduling tasks'.format(self.name))
         try:
             loop.run_until_complete(producers)
             loop.run_until_complete(consumers)
         except Exception as e:
-            print(e)
             self._log.error(e)
-            self._log.info('Stopping DAG by closing consumers')
+            self._log.info('DAG {}: Stopping DAG by cancelling scheduled tasks'.format(self.name))
             if not loop.is_closed():
-                # producers.cancel()
-                consumers.cancel()
+                task = asyncio.Task.all_tasks()
+                asyncio.wait(task).cancel()
+                # consumers.cancel()
         finally:
             if loop.is_running():
                 loop.stop()
                 self._log.info('Stopping DAG')
+            self._log.info('DAG Stopped')
 
