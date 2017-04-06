@@ -9,6 +9,7 @@ import shutil
 import tempfile
 
 class InformationPacket(object):
+
     def __init__(self, value):
         self._value = value
         self._owner = None
@@ -86,6 +87,8 @@ class FilePacket(InformationPacket):
     def finalize(self):
         shutil.copy(self.tempfile, self.path)
 
+    def __str__(self):
+        return "{} owned by {}, path {}, existing {}".format(self.__repr__(), self.owner, self.path, self.exists)
 
     @property
     def value(self):
