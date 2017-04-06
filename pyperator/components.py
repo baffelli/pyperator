@@ -53,7 +53,6 @@ class Split(Component):
 
     def __init__(self, name):
         super(Split, self).__init__(name)
-        # [self.outputs.add(OutputPort('OUT{n}'.format(n=n))) for n in range(n_outs)]
         self.inputs.add(InputPort('IN'))
 
     @log_schedule
