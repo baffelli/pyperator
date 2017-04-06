@@ -74,7 +74,7 @@ class Port:
         self.packet_factory = InformationPacket
 
     def set_initial_packet(self, value):
-        logging.getLogger('root').debug("Set initial message for {} at port {}".format(self.name, self.component))
+        self._component.log.debug("Set initial message for {} at port {}".format(self.name, self.component))
         packet = self.packet_factory(value)
         packet.owner = self.component
         self.queue.put_nowait(packet)
