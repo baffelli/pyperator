@@ -75,9 +75,14 @@ class Port:
 
     def set_initial_packet(self, value):
         logging.getLogger('root').debug("Set initial message for {} at port {}".format(self.name, self.component))
-        packet = InformationPacket(value)
+        packet = self.packet_factory(value)
         packet.owner = self.component
         self.queue.put_nowait(packet)
+
+    def kickstart(self):
+        packet = self.packet_factory(None)
+        self.queue.put_nowait(packet)
+        self.component._log.debug('Component {}: Kickstarting port {}'.format(self.component, self.name))
 
     async def receive(self):
         packet = await self.receive_packet()
@@ -175,14 +180,16 @@ class FilePort(Port):
         super(FilePort, self).__init__(name, component=component)
         self._path = None
         self.packet_factory = FilePacket
-
-    @property
-    def path(self):
-        return self._path
-
-    @path.setter
-    def path(self, path):
-        self._path = path
+    #
+    # @property
+    # def path(self):
+    #     return self._path
+    #
+    # @path.setter
+    # def path(self, path):
+    #     self._path = path
+    #
+    # def send(self, data):
 
 
 
@@ -192,6 +199,18 @@ class OutputPort(Port):
     pass
     # async def receive_packet(self, packet):
     #     return
+
+
+# class IIP(Port):
+#
+#     def __init__(self,name, value, **kwargs):
+#         Port.__init__(self, name, **kwargs)
+#         self.value = value
+#
+#     async def receive_packet(self):
+#         pass
+#
+#     async def send_packet(self, packet):
 
 
 class InputPort(Port):
