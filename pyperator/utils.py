@@ -85,7 +85,7 @@ class Port:
 
     def set_initial_packet(self, value):
         self._component.log.debug("Set initial message for {} at port {}".format(self.name, self.component))
-        packet = self.packet_factory(value)
+        packet = self.packet_factory(value, owner=self.component)
         packet.owner = self.component
         self.queue.put_nowait(packet)
 
@@ -115,9 +115,14 @@ class Port:
     async def send_packet(self, packet):
         if self.is_connected:
             if packet.exists:
-                for other in self.other:
-                    self.component._log.debug("Component {}: sending {} to {}".format(self.component, str(packet), self.name))
-                    await other.queue.put(packet)
+                if packet.owner is self.component :
+                    for other in self.other:
+                        self.component._log.debug("Component {}: sending {} to {}".format(self.component, str(packet), self.name))
+                        await other.queue.put(packet)
+                else:
+                    error_message =  "Component {}: packets {} is not owned by this component, copy it first".format(self.component, str(packet), self.name)
+                    self.component._log.error(error_message)
+                    raise IP.PacketOwnedError(error_message)
             else:
                 ex_str = 'Component {}, Port {}: The information packet with path {} does not exist'.format(self.component, self.port, packet.path)
                 self.component._log.error(ex_str)
@@ -130,7 +135,7 @@ class Port:
     async def send(self, data):
         if self.is_connected:
             for other in self.other:
-                packet = self.packet_factory(data)
+                packet = self.packet_factory(data, owner=self.component)
                 packet.owner = self.component
                 await other.queue.put(packet)
         else:
@@ -150,6 +155,7 @@ class Port:
 
     async def close(self):
         packet = EndOfStream()
+        packet.owner = self.component
         await self.send_packet(packet)
 
 

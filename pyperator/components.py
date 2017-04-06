@@ -3,7 +3,10 @@ import itertools
 import logging
 import subprocess as _sub
 
-from pyperator.IP import FileNotExistingError
+import itertools as _iter
+
+
+from pyperator.IP import FileNotExistingError, Bracket
 
 from . import IP
 from .nodes import Component
@@ -57,20 +60,37 @@ class Split(Component):
     async def __call__(self):
         while True:
             data = await self.inputs.IN.receive_packet()
+            print([i for i in data])
             self._log.debug(
                 "Component {}: Splitting '{}'".format(self.name, data))
             for index_port, ((data_item), (output_port_name, output_port)) in enumerate(
-                    zip(data.value, self.outputs.items())):
-                await output_port.send(data_item)
+                    zip(data, self.outputs.items())):
+                await output_port.send_packet(data_item.copy())
             await asyncio.sleep(0)
 
 
-class GeneratorProductSource(Component):
+class IterSource(Component):
     """
-    This component returns a tuple obtained
-    from a product of generators
+    This component returns a Bracket IP
+    from a itertool function such as product
     """
-    pass
+    def __init__(self, name, *generators, function=_iter.product):
+        super(IterSource, self).__init__(name)
+        self.generators = generators
+        self.outputs.add(OutputPort('OUT'))
+        self.function = function
+
+    @log_schedule
+    async def __call__(self):
+        # print(list(_iter.product(*self.generators)))
+        for items in self.function(*self.generators):
+            packet = Bracket(owner=self)
+            for item in items:
+                packet.append(item)
+            await self.outputs.OUT.send_packet(packet)
+            await asyncio.sleep(0)
+        await self.close_downstream()
+
 
 
 class ConstantSource(Component):

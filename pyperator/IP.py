@@ -8,6 +8,9 @@ import shutil
 
 import tempfile
 
+
+
+
 class InformationPacket(object):
 
     def __init__(self, value, owner=None):
@@ -67,6 +70,9 @@ class InformationPacket(object):
     def open(self):
         pass
 
+    def copy(self):
+        return InformationPacket(self.value, owner=None)
+
 class FilePacket(InformationPacket):
 
     def __init__(self, path, mode='r', owner=None):
@@ -108,6 +114,11 @@ class FilePacket(InformationPacket):
     def is_file(self):
         return True
 
+    def copy(self):
+        return FilePacket(self.path, owner=None, mode=self.mode)
+
+
+
 
 
 class EndOfStream(InformationPacket):
@@ -123,11 +134,46 @@ class EndOfStream(InformationPacket):
         return "EOS"
 
 
+class Bracket(InformationPacket):
+    """
+    This is a bracket IP, composed of a list of IPs
+    """
+
+    def __init__(self, owner=None):
+        super(Bracket,self).__init__(value=[], owner=owner)
+
+    def __getitem__(self, item):
+       return self.value.__getitem__(item)
+
+    def __add__(self, other):
+        self._value.__add__(other)
+
+    def append(self, other):
+        other_packet = InformationPacket(other, owner=self)
+        self._value.append(other_packet)
+
+    def append_packet(self, packet):
+        self._value.append(packet)
+
+    def __len__(self):
+        return self.value.__len__()
+
+    def __str__(self):
+        st = "{} owned by {}, length {}, value {}".format(self.__repr__(), self.owner, self.__len__(), self._value)
+        return st
+
+    def __iter__(self):
+        return self.value.__iter__()
+
 class FileExistingError(BaseException):
     def __init__(self, *args, **kwargs):
         BaseException.__init__(self, *args, **kwargs)
 
 
 class FileNotExistingError(BaseException):
+    def __init__(self, *args, **kwargs):
+        BaseException.__init__(self, *args, **kwargs)
+
+class PacketOwnedError(BaseException):
     def __init__(self, *args, **kwargs):
         BaseException.__init__(self, *args, **kwargs)
