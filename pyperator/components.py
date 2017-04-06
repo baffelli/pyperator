@@ -59,7 +59,6 @@ class Split(Component):
     async def __call__(self):
         while True:
             data = await self.inputs.IN.receive_packet()
-            print([i for i in data])
             self._log.debug(
                 "Component {}: Splitting '{}'".format(self.name, data))
             for index_port, ((data_item), (output_port_name, output_port)) in enumerate(
