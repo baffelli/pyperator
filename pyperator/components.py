@@ -5,12 +5,13 @@ import subprocess as _sub
 
 import itertools as _iter
 
+import glob as _glob
 
 from pyperator.IP import FileNotExistingError, Bracket
 
 from . import IP
 from .nodes import Component
-from .utils import InputPort, OutputPort, log_schedule
+from .utils import InputPort, OutputPort, log_schedule, FilePort
 
 
 
@@ -43,6 +44,73 @@ class GeneratorSource(Component):
             await asyncio.sleep(0)
         await self.close_downstream()
 
+class GlobSource(Component):
+    """
+    This is a component that emits FilePackets
+    according to a glob pattern specified
+    when the component is initialized
+    """
+    def __init__(self, name, pattern):
+        super(GlobSource, self).__init__(name)
+        self.pattern = pattern
+        self.outputs.add(FilePort('OUT'))
+
+
+    @log_schedule
+    async def __call__(self):
+        files = _glob.glob(self.pattern)
+        for file in files:
+            p = IP.FilePacket(file, owner=self)
+            await self.outputs.OUT.send_packet(p)
+            await asyncio.sleep(0)
+        await self.close_downstream()
+
+
+
+class FileListSource(Component):
+    """
+    This is a component that emits FilePackets
+    from a list of files
+    """
+    def __init__(self, name, files):
+        super(FileListSource, self).__init__(name)
+        self.files = files
+        self.outputs.add(FilePort('OUT'))
+
+    @log_schedule
+    async def __call__(self):
+        for file in self.files:
+            p = IP.FilePacket(file, owner=self)
+            await self.outputs.OUT.send_packet(p)
+            await asyncio.sleep(0)
+        await self.close_downstream()
+
+
+class ReplacePath(Component):
+    """
+    This is a component that emits FilePackets
+    with a path obtained by replacing the input path
+    """
+    def __init__(self, name, pattern):
+        super(ReplacePath,self).__init__(name)
+        self.pattern = pattern
+        self.inputs.add(FilePort('IN'))
+        self.outputs.add(FilePort('OUT'))
+
+    @log_schedule
+    async def __call__(self):
+        while True:
+            p = await self.inputs.IN.receive_packet()
+            p1 = IP.FilePacket(p.path.replace(*self.pattern), owner=self)
+            p.drop()
+            await self.outputs.OUT.send_packet(p1)
+            await asyncio.sleep(0)
+
+class PathToFilePacket(Component):
+    """
+    This component converts a path to a file packet
+    """
+    pass
 
 class Split(Component):
     """
