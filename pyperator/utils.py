@@ -11,7 +11,7 @@ import functools as _ft
 
 import re as _re
 
-conn_template = "{component}:{name}"
+conn_template = "{component.name}:{name}"
 
 
 import logging
@@ -175,7 +175,7 @@ class Port:
             return False
 
     def __repr__(self):
-        port_template = "Port {component}:{name}"
+        port_template = "Port {component.name}:{name}"
         formatted = port_template.format(**self.__dict__)
         return formatted
 
@@ -232,7 +232,10 @@ class PortRegister:
         self.ports = _od()
 
     def add(self, port):
-        port.component = self.component
+        try:
+            port.component = self.component
+        except AttributeError:
+            raise PortNotExistingException('Component {}: The port named {} does not exist'.format(self.component, port))
         self.ports.update({port.name: port})
 
     def __getitem__(self, item):

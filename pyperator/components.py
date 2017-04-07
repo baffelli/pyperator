@@ -171,6 +171,10 @@ class ConstantSource(Component):
         self.repeat = repeat
         [self.outputs.add(OutputPort(output_name)) for output_name in outputs]
 
+    def type_str(self):
+        return "constant {}".format(self.constant)
+
+
     @log_schedule
     async def __call__(self):
         for i in itertools.count():
@@ -178,7 +182,7 @@ class ConstantSource(Component):
                 return
             else:
                 await asyncio.wait(self.send_to_all(self.constant))
-                # await asyncio.sleep(0)
+                await asyncio.sleep(0)
 
 
 class Filter(Component):

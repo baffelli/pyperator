@@ -120,30 +120,30 @@ class Multigraph:
             """.format(nodes=";\n".join(nodes_gen), edges="\n".join(arc_str))
         return _tw.dedent(graph_str)
 
-    async def dot_coro(self):
-        while True:
-            nodes = []
-            future_nodes = [node._active.get() for node in self.iternodes()]
-            completed, pending = await asyncio.wait(future_nodes,return_when=asyncio.FIRST_COMPLETED)
-            for node in self.iternodes():
-                print(node.color)
-                dot =await node.dot()
-                nodes.append(dot)
-            arc_str = (
-                "{source}:{outport} -> {dest}:{inport}".format(source=connection.source, dest=connection.dest,
-                                                                            inport=connection.inport,
-                                                                            outport=connection.outport) for
-                connection in self.iterarcs())
-            # edged_gen
-            graph_str = """
-                digraph DAG{{
-                graph[bgcolor=white, margin=0]
-                    {nodes}
-                    {edges}
-                }}
-                """.format(nodes=";\n".join(nodes), edges="\n".join(arc_str))
-            print(graph_str)
-        return _tw.dedent(graph_str)
+    # async def dot_coro(self):
+    #     while True:
+    #         nodes = []
+    #         future_nodes = [node._active.get() for node in self.iternodes()]
+    #         completed, pending = await asyncio.wait(future_nodes,return_when=asyncio.FIRST_COMPLETED)
+    #         for node in self.iternodes():
+    #             print(node.color)
+    #             dot =await node.dot()
+    #             nodes.append(dot)
+    #         arc_str = (
+    #             "{source}:{outport} -> {dest}:{inport}".format(source=connection.source, dest=connection.dest,
+    #                                                                         inport=connection.inport,
+    #                                                                         outport=connection.outport) for
+    #             connection in self.iterarcs())
+    #         # edged_gen
+    #         graph_str = """
+    #             digraph DAG{{
+    #             graph[bgcolor=white, margin=0]
+    #                 {nodes}
+    #                 {edges}
+    #             }}
+    #             """.format(nodes=";\n".join(nodes), edges="\n".join(arc_str))
+    #         print(graph_str)
+    #     return _tw.dedent(graph_str)
 
 
 

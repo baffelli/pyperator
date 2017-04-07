@@ -105,6 +105,9 @@ class FilePacket(InformationPacket):
     def path(self):
         return self._path
 
+    @property
+    def dirname(self):
+        return _os.path.dirname(self.path)
 
     @property
     def exists(self):
