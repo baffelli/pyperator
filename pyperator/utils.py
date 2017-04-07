@@ -245,7 +245,10 @@ class PortRegister:
         if item in self.ports:
             return self.ports.get(item)
         else:
-            return 'a'
+            raise PortNotExistingException('Component {}: The port named {} does not exist'.format(self.component, port))
+
+    def __iter__(self):
+        return self.ports.__iter__()
 
     def __len__(self):
         return self.ports.__len__()
@@ -253,8 +256,8 @@ class PortRegister:
     def __str__(self):
         return "{component}: {ports}".format(component=self.component, ports=list(self.ports.keys()))
 
-    def __repr__(self):
-        return self.port.__repr__()
+    # def __repr__(self):
+    #     return self.port.__repr__()
 
     def items(self):
         yield from self.ports.items()
