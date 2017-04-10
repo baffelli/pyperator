@@ -1,6 +1,7 @@
 import asyncio
 import re as _re
 from collections import OrderedDict as _od
+from collections import namedtuple as nt
 
 import pyparsing as _pp
 
@@ -94,7 +95,8 @@ class Wildcards(object):
         wc_dic = {}
         for wc_name, wc_value in res.groupdict().items():
             wc_dic[wc_name] = wc_value
-        return type('wc', (object,), wc_dic)
+        wc_nt = nt('wc', wc_dic.keys())(**wc_dic)
+        return wc_nt
 
 
 
@@ -116,7 +118,7 @@ def log_schedule(method):
     return inner
 
 
-class PortNotExistingException(Exception):
+class PortNotExistingException(BaseException):
     pass
 
 
@@ -124,11 +126,11 @@ class StopComputation(StopIteration):
     pass
 
 
-class PortDisconnectedError(Exception):
+class PortDisconnectedError(BaseException):
     pass
 
 
-class MultipleConnectionError(Exception):
+class MultipleConnectionError(BaseException):
     pass
 
 
@@ -293,14 +295,16 @@ class PortRegister:
         self.ports.update({port.name: port})
 
     def __getitem__(self, item):
-        return self.ports.get(item)
-
-    def __getattr__(self, item):
         if item in self.ports:
             return self.ports.get(item)
         else:
             raise PortNotExistingException(
-                'Component {}: The port named {} does not exist'.format(self.component, port))
+                'Component {}: The port named {} does not exist'.format(self.component, item))
+
+    def __getattr__(self, item):
+        return self[item]
+
+
 
     def __iter__(self):
         return self.ports.__iter__()
