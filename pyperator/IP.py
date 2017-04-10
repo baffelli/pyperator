@@ -1,25 +1,21 @@
-#Based on https://github.com/LumaPictures/pflow/blob/master/pflow/packet.py
+# Based on https://github.com/LumaPictures/pflow/blob/master/pflow/packet.py
 
 import os as _os
 
-import os.path as _path
 import shutil
-
 
 import tempfile
 
 
-
+from . import utils
 
 class InformationPacket(object):
-
     def __init__(self, value, owner=None):
         self._value = value
         self._owner = owner
 
     def drop(self):
         del self
-
 
     def __str__(self):
         return "{} owned by {}, path {}, value {}".format(self.__repr__(), self.owner, self.path, self.value)
@@ -31,7 +27,6 @@ class InformationPacket(object):
     @value.setter
     def value(self, value):
         raise ValueError('Cannot set value, copy packet and set its value')
-
 
     @property
     def owner(self):
@@ -73,8 +68,8 @@ class InformationPacket(object):
     def copy(self):
         return InformationPacket(self.value, owner=None)
 
-class FilePacket(InformationPacket):
 
+class FilePacket(InformationPacket):
     def __init__(self, path, mode='r', owner=None):
         super(FilePacket, self).__init__(None, owner=owner)
         self._path = path
@@ -110,6 +105,10 @@ class FilePacket(InformationPacket):
         return _os.path.dirname(self.path)
 
     @property
+    def nameroot(self):
+        return _os.path._splitext(self.basename)[0]
+
+    @property
     def exists(self):
         return _os.path.isfile(self.path)
 
@@ -120,14 +119,16 @@ class FilePacket(InformationPacket):
     def copy(self):
         return FilePacket(self.path, owner=None, mode=self.mode)
 
-
-
-
+    @property
+    def modification_time(self):
+        return _os.path.getatime(self.path)
 
 class EndOfStream(InformationPacket):
-
+    """
+    End of stream packet, to signal end of computation
+    """
     def __init__(self):
-        super(EndOfStream,self).__init__(None)
+        super(EndOfStream, self).__init__(None)
 
     @property
     def is_eos(self):
@@ -143,10 +144,10 @@ class Bracket(InformationPacket):
     """
 
     def __init__(self, owner=None):
-        super(Bracket,self).__init__(value=[], owner=owner)
+        super(Bracket, self).__init__(value=[], owner=owner)
 
     def __getitem__(self, item):
-       return self.value.__getitem__(item)
+        return self.value.__getitem__(item)
 
     def __add__(self, other):
         self._value.__add__(other)
@@ -168,6 +169,7 @@ class Bracket(InformationPacket):
     def __iter__(self):
         return self.value.__iter__()
 
+
 class FileExistingError(BaseException):
     def __init__(self, *args, **kwargs):
         BaseException.__init__(self, *args, **kwargs)
@@ -176,6 +178,7 @@ class FileExistingError(BaseException):
 class FileNotExistingError(BaseException):
     def __init__(self, *args, **kwargs):
         BaseException.__init__(self, *args, **kwargs)
+
 
 class PacketOwnedError(BaseException):
     def __init__(self, *args, **kwargs):
