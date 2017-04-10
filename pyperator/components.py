@@ -296,7 +296,8 @@ class Shell(Component):
 
     def DynamicFormatter(self, outport, pattern):
         self.output_formatters[outport] = lambda inputs, outputs, wildcards: pattern.format(inputs=inputs,
-                                                                                            outputs=outputs)
+                                                                                            outputs=outputs,
+                                                                                            wildcards=wildcards)
 
     def WildcardsExpression(self, inport, pattern):
         self.wildcard_expressions[inport] = Wildcards(pattern)
@@ -311,62 +312,66 @@ class Shell(Component):
         """
         wildcards_dict = {}
         for inport, inpacket in received_data.items():
-            try:
+            if inport in self.wildcard_expressions:
                 wildcards_dict[inport] = self.wildcard_expressions[inport].parse(inpacket.path)
                 self._log.debug(
                     'Component {}: Port {}, with wildcard pattern {}, wildcards are {}'.format(self.name, inport,
                                                                                                self.wildcard_expressions[
                                                                                                    inport].pattern,
                                                                                                wildcards_dict[inport]))
-            except KeyError:
-                pass
-            except Exception as e:
-                print(e)
-        # wildcards = type('wildcards', (object,), wildcards_dict)
-        return wildcards_dict
+        wildcards = type('wildcards', (object,), wildcards_dict)
+        return wildcards
 
-    def format_paths(self, received_data):
+    def generate_output_paths(self, received_data):
         """
         This function generates the (dynamic) output and inputs
         paths using the inputs and the formatting functions
         """
 
         inputs = type('inputs', (object,), received_data)
-        outputs = {}
-        packets = {}
+        out_paths = {}
         wildcards = self.parse_wildcards(received_data)
-        existing = False
         for out, out_port in self.outputs.items():
             try:
                 # First try formatting outpur
-                try:
-                    outputs[out] = self.output_formatters[out](inputs, outputs, wildcards)
-                    self._log.debug(
-                        "Component {}: Output port {} will produce file '{}'".format(self.name, out_port, outputs[out]))
-                except Exception as e:
-                    print(type(e))
-
-                packets[out] = IP.FilePacket(outputs[out])
-                # If any file with the same name exists
-                if packets[out].exists:
-                    self._log.debug("Component {}: Output file '{}' already exist".format(self.name, packets[out].path))
-                    existing = True
+                out_paths[out] = self.output_formatters[out](inputs, out_paths, wildcards)
+                self._log.debug(
+                    "Component {}: Output port {} will send file '{}'".format(self.name, out_port, out_paths[out]))
             except Exception as e:
                 ex_text = 'Component {}: Port {} does not have a path formatter specified'.format(self.name, out)
                 self._log.error(ex_text)
                 raise FormatterError(ex_text)
-        outputs = type('outputs', (object,), packets)
-        return inputs, outputs, packets, existing
+        return out_paths, wildcards
+
+    def generate_packets(self, out_paths):
+        out_packets = {}
+        for port, path in out_paths.items():
+            out_packets[port] = IP.FilePacket(path)
+        return out_packets
+
+    def enumerate_missing(self, out_packets):
+        return {port: packet for port, packet in out_packets.items() if not packet.exists}
+
 
     @log_schedule
     async def __call__(self):
         while True:
             # Wait for all upstram to be completed
             received_packets = await self.receive_packets()
-            # If the packet exists, we skip
-            inputs, outputs, packets, existing = self.format_paths(received_packets)
-            if not existing:
-                formatted_cmd = self.cmd.format(inputs=inputs, outputs=outputs)
+            # Generate output paths
+            out_paths, wildcards = self.generate_output_paths(received_packets)
+            out_packets = self.generate_packets(out_paths)
+            # Check for missing packet
+            missing = self.enumerate_missing(out_packets)
+            if missing:
+                self._log.debug(
+                    "Component {}: Output files '{}' do not exist not exist, command will be run".format(self.name,
+                                                                                                         [packet.path
+                                                                                                          for packet in
+                                                                                                          missing.values()]))
+                inputs_obj = type('a', (object,), received_packets)
+                ouputs_obj = type('a', (object,), out_packets)
+                formatted_cmd = self.cmd.format(inputs=inputs_obj, outputs=ouputs_obj, wildcards=wildcards)
                 self._log.debug("Executing command {}".format(formatted_cmd))
                 # Define stdout and stderr pipes
                 stdout = _sub.PIPE
@@ -384,12 +389,15 @@ class Shell(Component):
                     success_str = "Component {}: command successfully run, with output: {}".format(self.name, stdout)
                     self._log.info(success_str)
                 # Check if the output files exist
-                for k, p in packets.items():
-                    if not p.exists:
-                        ex_str = 'Component {name}: File {p.path} does not exist'.format(name=self.name, p=p)
-                        self._log.error(ex_str)
-                        raise FileNotExistingError(ex_str)
+                missing_after = self.enumerate_missing(out_packets)
+                if missing_after:
+                    missing_err = "Component {name}: Following files are missing {}, check the command".format(self.name, [packet.path for packet in missing_after.values()])
+
+                    self._log.error(missing_err)
+                    raise FileNotExistingError(missing_err)
             else:
-                self._log.debug("Component {}: Skipping command because output files exist".format(self.name))
-            await asyncio.wait(self.send_packets(packets))
+                self._log.debug(
+                    "Component {}: All output files exist, command will not be run".format(self.name))
+
+            await asyncio.wait(self.send_packets(out_packets))
             await asyncio.sleep(0)
