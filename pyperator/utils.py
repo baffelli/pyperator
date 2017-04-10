@@ -1,58 +1,73 @@
 import asyncio
+import re as _re
 from collections import OrderedDict as _od
 
 import pyparsing as _pp
 
-from .IP import InformationPacket, EndOfStream, FilePacket
-
 from . import IP
-
-import functools as _ft
-
-import re as _re
+from .IP import InformationPacket, EndOfStream, FilePacket
 
 conn_template = "{component.name}:{name}"
 
-
 import logging
 
+import itertools as _it
 
-#Define grammar
-#opener and closer
+# Define grammar
+# opener and closer
+_pp.ParserElement.setDefaultWhitespaceChars('\n ')
 wc_open = _pp.Literal('{')
 wc_close = _pp.Literal('}')
-wc_content = _pp.Word(_pp.alphanums)('wc')
-#Separator for regex
+wc_content = _pp.Word(_pp.alphanums)
+# Path literals to escape
+path_literal = _pp.Literal('/').setParseAction(lambda t: '\\' + t[0])
+dot_literal =  _pp.Literal('.').setParseAction(lambda t: '\\' + t[0])
+# Separator for regex
 re_sep = _pp.Literal(',')
-re = _pp.SkipTo(wc_close)('re')
-wildcard = wc_open + (wc_content + _pp.Optional(re_sep)) + re
-wildcards = _pp.OneOrMore(wildcard)
+re = _pp.SkipTo(wc_close)
+wildcard = (wc_open + _pp.Group(wc_content)('wc') + _pp.Optional(re_sep) + _pp.Group(re)('re') + wc_close)
+# Define path and escape, finally join it
+path = _pp.ZeroOrMore(_pp.Word(_pp.alphanums)('part_path')) ^  _pp.ZeroOrMore(wildcard) ^ _pp.ZeroOrMore(dot_literal) ^ _pp.ZeroOrMore(path_literal)
+
+
+print(path.searchString('/a{d,*}/c{e}.d'))
 
 class Wildcards(object):
     def __init__(self, pattern):
         self.pattern = pattern
-        #Transform the pattern in a
-        #dict
+        # Transform the pattern in a
+        # dict
         group_dict = {}
-        #Transform the pattern into a regex
-        for a in wildcard.searchString(pattern):
-            #default regex to match everything
+        # Transform the pattern into a regex
+        res = path.searchString(pattern)
+        for a in path.searchString(pattern):
+            # default regex to match everything
             re_str = a.re if a.re else r'.+'
-            group_dict[a.wc] = r"(?P<{a.wc}>{re_str})".format(a=a, re_str=re_str)
-        self.search_re =  _re.compile(self.pattern.format(**group_dict))
-        #Add it to the dict
+            group_dict[a.wc] = "(?P<{a.wc}>{re_str})".format(a=a, re_str=re_str)
 
+        self.search_re = _re.compile(self.pattern.format(**group_dict))
+        # Add it to the dict
 
     def parse(self, string):
         wc_dic = {}
         res = self.search_re.search(string)
+        print(self.search_re)
         for wc_name, wc_value in res.groupdict().items():
             wc_dic[wc_name] = wc_value
         self.__dict__.update(wc_dic)
 
 
-def log_schedule(method):
+class Default(dict):
+    """
+    from
+    "https://docs.python.org/3/library/stdtypes.html#str.format_map"
+    """
 
+    def __missing__(self, key):
+        return key
+
+
+def log_schedule(method):
     def inner(instance):
         instance._log.info('Component {}: Scheduled'.format(instance.name))
         return method(instance)
@@ -60,12 +75,13 @@ def log_schedule(method):
     return inner
 
 
-
 class PortNotExistingException(Exception):
     pass
 
+
 class StopComputation(StopIteration):
     pass
+
 
 class PortDisconnectedError(Exception):
     pass
@@ -117,14 +133,17 @@ class Port:
             if packet.exists:
                 if packet.owner == self.component or packet.owner == None:
                     for other in self.other:
-                        self.component._log.debug("Component {}: sending {} to {}".format(self.component, str(packet), self.name))
+                        self.component._log.debug(
+                            "Component {}: sending {} to {}".format(self.component, str(packet), self.name))
                         await other.queue.put(packet)
                 else:
-                    error_message =  "Component {}: packets {} is not owned by this component, copy it first".format(self.component, str(packet), self.name)
+                    error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
+                        self.component, str(packet), self.name)
                     self.component._log.error(error_message)
                     raise IP.PacketOwnedError(error_message)
             else:
-                ex_str = 'Component {}, Port {}: The information packet with path {} does not exist'.format(self.component, self.port, packet.path)
+                ex_str = 'Component {}, Port {}: The information packet with path {} does not exist'.format(
+                    self.component, self.port, packet.path)
                 self.component._log.error(ex_str)
                 raise IP.FileNotExistingError(ex_str)
         else:
@@ -145,10 +164,12 @@ class Port:
         if self.is_connected:
             self.component._log.debug("Component {}: receiving at {}".format(self.component, self.name))
             packet = await self.queue.get()
-            logging.getLogger('root').debug("Component {}: received {} from {}".format(self.component, packet, self.name))
+            logging.getLogger('root').debug(
+                "Component {}: received {} from {}".format(self.component, packet, self.name))
             self.queue.task_done()
             if packet.is_eos:
-                self.component._log.info("Component {}: stopping because {} was received".format(self.component, packet))
+                self.component._log.info(
+                    "Component {}: stopping because {} was received".format(self.component, packet))
                 raise StopComputation('Done')
             else:
                 return packet
@@ -157,7 +178,6 @@ class Port:
         packet = EndOfStream()
         packet.owner = self.component
         await self.send_packet(packet)
-
 
     @property
     def path(self):
@@ -183,8 +203,6 @@ class Port:
         return conn_template.format(**self.__dict__)
 
 
-
-
 class FilePort(Port):
     """
     This is a port used in shell commands
@@ -198,17 +216,11 @@ class FilePort(Port):
         self.packet_factory = FilePacket
 
 
-
-
-
-
 class OutputPort(Port):
     pass
 
 
-
 class InputPort(Port):
-
     def __init__(self, *args, **kwargs):
         super(InputPort, self).__init__(*args, **kwargs)
         self._n_ohter = 0
@@ -216,7 +228,7 @@ class InputPort(Port):
     def connect(self, other_port):
         if self._n_ohter == 0:
             super(InputPort, self).connect(other_port)
-            self._n_ohter +=1
+            self._n_ohter += 1
         else:
             ext_text = "A {} port only supports one incoming connection".format(type(self))
             self.component._log.error(ext_text)
@@ -235,7 +247,8 @@ class PortRegister:
         try:
             port.component = self.component
         except AttributeError:
-            raise PortNotExistingException('Component {}: The port named {} does not exist'.format(self.component, port))
+            raise PortNotExistingException(
+                'Component {}: The port named {} does not exist'.format(self.component, port))
         self.ports.update({port.name: port})
 
     def __getitem__(self, item):
@@ -245,7 +258,8 @@ class PortRegister:
         if item in self.ports:
             return self.ports.get(item)
         else:
-            raise PortNotExistingException('Component {}: The port named {} does not exist'.format(self.component, port))
+            raise PortNotExistingException(
+                'Component {}: The port named {} does not exist'.format(self.component, port))
 
     def __iter__(self):
         return self.ports.__iter__()
