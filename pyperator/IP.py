@@ -7,7 +7,6 @@ import shutil
 import tempfile
 
 
-from . import utils
 
 class InformationPacket(object):
     def __init__(self, value, owner=None):
@@ -106,7 +105,7 @@ class FilePacket(InformationPacket):
 
     @property
     def nameroot(self):
-        return _os.path._splitext(self.basename)[0]
+        return self.basename[:self.basename.index('.')]
 
     @property
     def exists(self):
