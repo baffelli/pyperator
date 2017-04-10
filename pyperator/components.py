@@ -10,6 +10,7 @@ from . import IP
 from .nodes import Component
 from .utils import InputPort, OutputPort, log_schedule, FilePort, Wildcards
 
+import functools as _ft
 
 class FormatterError(BaseException):
     def __init__(self, *args, **kwargs):
@@ -295,6 +296,11 @@ class Shell(Component):
         self.output_formatters[port] = lambda inputs, outputs, wildcards: path
 
     def DynamicFormatter(self, outport, pattern):
+        def partial_formatter(pattern, **kwargs):
+            for kw, value in kwargs.items():
+                pattern = _ft.partial(pattern.format, **{kw:value})
+                print(pattern())
+
         self.output_formatters[outport] = lambda inputs, outputs, wildcards: pattern.format(inputs=inputs,
                                                                                             outputs=outputs,
                                                                                             wildcards=wildcards)
@@ -337,7 +343,7 @@ class Shell(Component):
                 out_paths[out] = self.output_formatters[out](inputs, out_paths, wildcards)
                 self._log.debug(
                     "Component {}: Output port {} will send file '{}'".format(self.name, out_port, out_paths[out]))
-            except Exception as e:
+            except NameError as e:
                 ex_text = 'Component {}: Port {} does not have a path formatter specified'.format(self.name, out)
                 self._log.error(ex_text)
                 raise FormatterError(ex_text)
