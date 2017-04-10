@@ -1,21 +1,22 @@
 import asyncio
-import itertools
-import logging
-import subprocess as _sub
-
-import itertools as _iter
-
 import glob as _glob
+import itertools
+import itertools as _iter
+import subprocess as _sub
 
 from pyperator.IP import FileNotExistingError, Bracket
 
 from . import IP
 from .nodes import Component
-from .utils import InputPort, OutputPort, log_schedule, FilePort
-
+from .utils import InputPort, OutputPort, log_schedule, FilePort, Wildcards
 
 
 class FormatterError(BaseException):
+    def __init__(self, *args, **kwargs):
+        BaseException.__init__(self, *args, **kwargs)
+
+
+class WildcardNotExistingError(BaseException):
     def __init__(self, *args, **kwargs):
         BaseException.__init__(self, *args, **kwargs)
 
@@ -44,27 +45,32 @@ class GeneratorSource(Component):
             await asyncio.sleep(0)
         await self.close_downstream()
 
+
 class GlobSource(Component):
     """
     This is a component that emits FilePackets
     according to a glob pattern specified
     when the component is initialized
     """
+
     def __init__(self, name, pattern):
         super(GlobSource, self).__init__(name)
         self.pattern = pattern
         self.outputs.add(FilePort('OUT'))
 
-
     @log_schedule
     async def __call__(self):
         files = _glob.glob(self.pattern)
+        start_message = "Component {}: will emit the following files {}".format(self.name, self.pattern)
+        self._log.info(start_message)
         for file in files:
             p = IP.FilePacket(file, owner=self)
             await self.outputs.OUT.send_packet(p)
             await asyncio.sleep(0)
+        stop_message = "Component {}: exahusted list of files".format(self.name)
+        self._log.info(stop_message)
         await self.close_downstream()
-
+        raise StopIteration('Exhausted Files')
 
 
 class FileListSource(Component):
@@ -72,6 +78,7 @@ class FileListSource(Component):
     This is a component that emits FilePackets
     from a list of files
     """
+
     def __init__(self, name, files):
         super(FileListSource, self).__init__(name)
         self.files = files
@@ -91,8 +98,9 @@ class ReplacePath(Component):
     This is a component that emits FilePackets
     with a path obtained by replacing the input path
     """
+
     def __init__(self, name, pattern):
-        super(ReplacePath,self).__init__(name)
+        super(ReplacePath, self).__init__(name)
         self.pattern = pattern
         self.inputs.add(FilePort('IN'))
         self.outputs.add(FilePort('OUT'))
@@ -106,11 +114,13 @@ class ReplacePath(Component):
             await self.outputs.OUT.send_packet(p1)
             await asyncio.sleep(0)
 
+
 class PathToFilePacket(Component):
     """
     This component converts a path to a file packet
     """
     pass
+
 
 class Split(Component):
     """
@@ -140,6 +150,7 @@ class IterSource(Component):
     This component returns a Bracket IP
     from a itertool function such as product
     """
+
     def __init__(self, name, *generators, function=_iter.product):
         super(IterSource, self).__init__(name)
         self.generators = generators
@@ -155,8 +166,8 @@ class IterSource(Component):
                 packet.append(item)
             await self.outputs.OUT.send_packet(packet)
             await asyncio.sleep(0)
+        raise StopIteration('Exahusted iterator')
         await self.close_downstream()
-
 
 
 class ConstantSource(Component):
@@ -174,13 +185,13 @@ class ConstantSource(Component):
     def type_str(self):
         return "constant {}".format(self.constant)
 
-
     @log_schedule
     async def __call__(self):
         for i in itertools.count():
             if self.repeat and i >= self.repeat:
                 return
             else:
+                packet = IP.InformationPacket
                 await asyncio.wait(self.send_to_all(self.constant))
                 await asyncio.sleep(0)
 
@@ -262,7 +273,6 @@ class ShowInputs(Component):
             print(show_str)
 
 
-
 class Shell(Component):
     """
     This component executes a shell script with inputs and outputs
@@ -273,14 +283,47 @@ class Shell(Component):
     def __init__(self, name, cmd):
         super(Shell, self).__init__(name)
         self.cmd = cmd
-        #
         self.output_formatters = {}
+        # Input ports may have wildcard expressions attached
+        self.wildcard_expressions = {}
 
     def FixedFormatter(self, port, path):
-        self.output_formatters[port] = lambda data: path
+        """
+        Formats the ouput port with a fixed
+
+        """
+        self.output_formatters[port] = lambda inputs, outputs, wildcards: path
 
     def DynamicFormatter(self, outport, pattern):
-        self.output_formatters[outport] = pattern
+        self.output_formatters[outport] = lambda inputs, outputs, wildcards: pattern.format(inputs=inputs,
+                                                                                            outputs=outputs)
+
+    def WildcardsExpression(self, inport, pattern):
+        self.wildcard_expressions[inport] = Wildcards(pattern)
+
+    def parse_wildcards(self, received_data):
+        """
+        This function parses the input packets
+        to extract the wildcards, if any are defined.
+        Returns a dict of wildcards objects
+        which can be accessed as
+        {portname.wildcards.wildcard_name}
+        """
+        wildcards_dict = {}
+        for inport, inpacket in received_data.items():
+            try:
+                wildcards_dict[inport] = self.wildcard_expressions[inport].parse(inpacket.path)
+                self._log.debug(
+                    'Component {}: Port {}, with wildcard pattern {}, wildcards are {}'.format(self.name, inport,
+                                                                                               self.wildcard_expressions[
+                                                                                                   inport].pattern,
+                                                                                               wildcards_dict[inport]))
+            except KeyError:
+                pass
+            except Exception as e:
+                print(e)
+        # wildcards = type('wildcards', (object,), wildcards_dict)
+        return wildcards_dict
 
     def format_paths(self, received_data):
         """
@@ -291,16 +334,22 @@ class Shell(Component):
         inputs = type('inputs', (object,), received_data)
         outputs = {}
         packets = {}
+        wildcards = self.parse_wildcards(received_data)
         existing = False
         for out, out_port in self.outputs.items():
             try:
-                outputs[out] = self.output_formatters[out].format(inputs=inputs, outputs=outputs)
-                self._log.debug(
-                    "Component {}: Output port {} will produce file '{}'".format(self.name, out_port, outputs[out]))
+                # First try formatting outpur
+                try:
+                    outputs[out] = self.output_formatters[out](inputs, outputs, wildcards)
+                    self._log.debug(
+                        "Component {}: Output port {} will produce file '{}'".format(self.name, out_port, outputs[out]))
+                except Exception as e:
+                    print(type(e))
+
                 packets[out] = IP.FilePacket(outputs[out])
                 # If any file with the same name exists
                 if packets[out].exists:
-                    self._log.debug("Component {}: Output file '{}' exist".format(self.name, packets[out].path))
+                    self._log.debug("Component {}: Output file '{}' already exist".format(self.name, packets[out].path))
                     existing = True
             except Exception as e:
                 ex_text = 'Component {}: Port {} does not have a path formatter specified'.format(self.name, out)
@@ -325,7 +374,9 @@ class Shell(Component):
                 proc = _sub.Popen(formatted_cmd, shell=True, stdout=stdout, stderr=stderr)
                 stdoud, stderr = proc.communicate()
                 if proc.returncode != 0:
-                    ext_str = "Component {}: running command '{}' failed with output: \n {}".format(self.name, formatted_cmd, stderr.strip())
+                    ext_str = "Component {}: running command '{}' failed with output: \n {}".format(self.name,
+                                                                                                    formatted_cmd,
+                                                                                                    stderr.strip())
                     self._log.error(ext_str)
                     # await self.close_downstream()
                     raise CommandFailedError(ext_str)
@@ -342,4 +393,3 @@ class Shell(Component):
                 self._log.debug("Component {}: Skipping command because output files exist".format(self.name))
             await asyncio.wait(self.send_packets(packets))
             await asyncio.sleep(0)
-
