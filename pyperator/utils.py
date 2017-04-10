@@ -11,50 +11,91 @@ conn_template = "{component.name}:{name}"
 
 import logging
 
-import itertools as _it
 
-# Define grammar
-# opener and closer
-_pp.ParserElement.setDefaultWhitespaceChars('\n ')
-wc_open = _pp.Literal('{')
-wc_close = _pp.Literal('}')
-wc_content = _pp.Word(_pp.alphanums)
-# Path literals to escape
-path_literal = _pp.Literal('/').setParseAction(lambda t: '\\' + t[0])
-dot_literal =  _pp.Literal('.').setParseAction(lambda t: '\\' + t[0])
-# Separator for regex
-re_sep = _pp.Literal(',')
-re = _pp.SkipTo(wc_close)
-wildcard = (wc_open + _pp.Group(wc_content)('wc') + _pp.Optional(re_sep) + _pp.Group(re)('re') + wc_close)
-# Define path and escape, finally join it
-path = _pp.ZeroOrMore(_pp.Word(_pp.alphanums)('part_path')) ^  _pp.ZeroOrMore(wildcard) ^ _pp.ZeroOrMore(dot_literal) ^ _pp.ZeroOrMore(path_literal)
+# def reAction(s, l, t):
+#     try:
+#         pt = _re.compile(t[0]).pattern
+#     except:
+#         pt = ""
+#     return pt
+#
+#
+# def escapeAction(s, l, t):
+#     return '\\' + t[0]
+#
+#
+# # Define grammar
+# # opener and closer
+# _pp.ParserElement.setDefaultWhitespaceChars('\n ')
+# wc_open = _pp.Literal('{')
+# wc_close = _pp.Literal('}')
+#
+# wc_content = _pp.Word(_pp.alphanums).setParseAction(lambda t: t[0])
+# # Path literals to escape
+# path_literal = _pp.Literal('/').setParseAction(escapeAction)
+# dot_literal = _pp.Literal('.').setParseAction(escapeAction)
+# # Separator for regex
+# re_sep = _pp.Literal(',').suppress()
 
 
-print(path.searchString('/a{d,*}/c{e}.d'))
+#Constraint for regex (from snakemake)
+regex_wildcards = _re.compile(
+    r"""
+    \{
+        (?=(
+            \s*(?P<wc_name>\w+)
+            (\s*,\s*
+                (?P<wc_re>
+                    ([^{}]+ | \{\d+(,\d+)?\})*
+                )
+            )?\s*
+        ))\1
+    \}
+    """, _re.VERBOSE)
+
+
+
+# wildcard = (wc_open + (wc_content)('wc_name') + _pp.Optional(re_sep + re('re')) + wc_close)
+# # Define path and escape, finally join it
+# path = _pp.ZeroOrMore(_pp.Word(_pp.alphanums)) ^ _pp.ZeroOrMore(wildcard) ^ _pp.ZeroOrMore(
+#     dot_literal) ^ _pp.ZeroOrMore(path_literal)
+#
+# res = re.searchString('/a{d,*}/c{e,e{3}}.d')
+# print(res.asList())
+
 
 class Wildcards(object):
     def __init__(self, pattern):
         self.pattern = pattern
-        # Transform the pattern in a
-        # dict
-        group_dict = {}
-        # Transform the pattern into a regex
-        res = path.searchString(pattern)
-        for a in path.searchString(pattern):
-            # default regex to match everything
-            re_str = a.re if a.re else r'.+'
-            group_dict[a.wc] = "(?P<{a.wc}>{re_str})".format(a=a, re_str=re_str)
 
-        self.search_re = _re.compile(self.pattern.format(**group_dict))
-        # Add it to the dict
+    def get_wildcards(self):
+        wc = ()
+        constaints = {}
+        for a in regex_wildcards.finditer(self.pattern):
+            wc_name = a.group('wc_name')
+            wc += (wc_name,)
+            constaints[wc_name] = a.group('wc_re') or '.+'
+        return wc, constaints
+
+
+    def replace_constraints(self):
+        def constraint_replacer(match):
+            return '{{{wc}}}'.format(wc=match.group('wc_name'))
+        replaced = _re.sub(regex_wildcards, constraint_replacer, self.pattern)
+        return replaced
+
+
 
     def parse(self, string):
+        wildcards, constraints = self.get_wildcards()
+        search_dic ={wc:"(?P<{wc}>{constraint})".format(wc=wc, constraint=constraint)  for wc, constraint in constraints.items()}
+        path_without_constraints = self.replace_constraints().replace('.', '\.')#escape dots
+        res = _re.compile(path_without_constraints.format(**search_dic)).search(string)
         wc_dic = {}
-        res = self.search_re.search(string)
-        print(self.search_re)
         for wc_name, wc_value in res.groupdict().items():
             wc_dic[wc_name] = wc_value
-        self.__dict__.update(wc_dic)
+        return type('wc', (object,), wc_dic)
+
 
 
 class Default(dict):
