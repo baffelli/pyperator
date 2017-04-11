@@ -97,7 +97,6 @@ class Component(AbstractComponent):
     async def close_downstream(self):
         futures = []
         for p_name, p in self.outputs.items():
-            self._log.debug("Component {}: closing downstream {}".format(self.name, p_name))
             futures.append(asyncio.ensure_future(p.close()))
         await asyncio.wait(futures)
 
@@ -131,3 +130,5 @@ class Component(AbstractComponent):
     @property
     def successors(self):
         yield from (port._connection.dest for port_name, port in self._outports.items())
+
+

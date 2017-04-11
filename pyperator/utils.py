@@ -3,6 +3,9 @@ import re as _re
 from collections import OrderedDict as _od
 from collections import namedtuple as nt
 
+import pyperator.exceptions
+from pyperator.exceptions import PortNotExistingException, PortDisconnectedError, OutputOnlyError, InputOnlyError, \
+    MultipleConnectionError, PortClosedError
 from . import IP
 from .IP import InformationPacket, EndOfStream, FilePacket
 
@@ -115,59 +118,6 @@ def log_schedule(method):
     return inner
 
 
-
-class PortException(BaseException):
-    def __init__(self, message, channel, *args):
-        try:
-            new_message = "Component {}: Port {} {}".format(channel.component, channel.name, message)
-        except:
-            new_message = 'fail'
-        super(PortException,self).__init__(new_message, *args)
-
-
-class ComponentException(BaseException):
-    def __init__(self, message, component, *args):
-        try:
-            new_message = "Component {}: {}".format(component, message)
-        except:
-            new_message = 'fail'
-        super(ComponentException,self).__init__(new_message, *args)
-
-
-
-class PortNotExistingException(ComponentException):
-    def __init__(self, component, item, *args):
-        super(PortNotExistingException, self).__init__("port {} does not exist.".format(item), component)
-
-
-class StopComputation(StopIteration):
-    pass
-
-
-class PortDisconnectedError(PortException):
-    def __init__(self, channel, *args):
-        super(PortDisconnectedError, self).__init__("is disconnected", channel)
-
-
-class OutputOnlyError(PortException):
-    def __init__(self, channel, *args):
-        super(OutputOnlyError, self).__init__("is a OutputPort, it cannot be used to receive.", channel, *args)
-
-
-class InputOnlyError(PortException):
-    def __init__(self, channel, *args):
-        super(InputOnlyError, self).__init__("is a InputPort, it cannot be used to send.", channel, *args)
-
-
-class MultipleConnectionError(BaseException):
-    pass
-
-
-class PortClosedError(PortException):
-    def __init__(self, channel, *args):
-        super(PortClosedError, self).__init__("is closed", channel, *args)
-
-
 class Port:
     def __init__(self, name, size=-1, component=None, blocking=False):
         self.name = name
@@ -229,12 +179,12 @@ class Port:
                         error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
                             self.component, str(packet), self.name)
                         self.component._log.error(error_message)
-                        raise IP.PacketOwnedError(error_message)
+                        raise pyperator.exceptions.PacketOwnedError(error_message)
                 else:
                     ex_str = 'Component {}, Port {}: The information packet with path {} does not exist'.format(
                         self.component, self.port, packet.path)
                     self.component._log.error(ex_str)
-                    raise IP.FileNotExistingError(ex_str)
+                    raise pyperator.exceptions.FileNotExistingError(ex_str)
             else:
                 raise PortClosedError()
         else:

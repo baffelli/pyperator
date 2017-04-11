@@ -169,16 +169,3 @@ class Bracket(InformationPacket):
         return self.value.__iter__()
 
 
-class FileExistingError(BaseException):
-    def __init__(self, *args, **kwargs):
-        BaseException.__init__(self, *args, **kwargs)
-
-
-class FileNotExistingError(BaseException):
-    def __init__(self, *args, **kwargs):
-        BaseException.__init__(self, *args, **kwargs)
-
-
-class PacketOwnedError(BaseException):
-    def __init__(self, *args, **kwargs):
-        BaseException.__init__(self, *args, **kwargs)

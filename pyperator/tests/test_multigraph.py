@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+import pyperator.exceptions
 from pyperator.DAG import Multigraph
 from pyperator.components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource, Filter, OneOffProcess
 from pyperator import components
@@ -83,7 +84,7 @@ class TestMultigraph(TestCase):
         c2 = Component('c2')
         c2.inputs.add(InputPort('a'))
         graph = Multigraph()
-        with self.assertRaises(pyper.utils.MultipleConnectionError):
+        with self.assertRaises(pyperator.exceptions.MultipleConnectionError):
             graph.connect(c1.outputs.a, c2.inputs.a)
             graph.connect(c1.outputs.b, c2.inputs.a)
 
@@ -91,7 +92,7 @@ class TestMultigraph(TestCase):
 
     def testNonExistingPort(self):
         c1 = Component('c1')
-        with self.assertRaises(pyper.utils.PortNotExistingException):
+        with self.assertRaises(pyperator.exceptions.PortNotExistingException):
             c1.outputs.c
 
     def testPortUniqueness(self):
@@ -229,13 +230,6 @@ class TestMultigraph(TestCase):
             outfile.write(graph.dot())
         graph()
 
-    # def testConstantSource(self):
-    #     source1 = ConstantSource('s1', 3)
-    #     shower = ShowInputs('printer')
-    #     shower.inputs.add(InputPort('in1'))
-    #     graph = Multigraph()
-    #     graph.connect(source1.outputs['OUT'], shower.inputs.in1)
-    #     graph()
 
 
 
@@ -254,19 +248,7 @@ class TestMultigraph(TestCase):
         graph.connect(summer.outputs.sum, shower.inputs.in1)
         graph()
 
-    # def testInfiniteRecursion(self):
-    #     source1 = ConstantSource('s1', 3)
-    #     shower = ShowInputs('printer', inputs=['in1'])
-    #     summer = BroadcastApplyFunction('summer', adder )
-    #     summer.inputs.add(InputPort('in1'))
-    #     summer.inputs.add(InputPort('recursion'))
-    #     summer.outputs.add(OutputPort('sum'))
-    #     graph = Multigraph()
-    #     graph.connect(source1.outputs.OUT, summer.inputs.in1)
-    #     graph.connect(summer.outputs.sum, summer.inputs.recursion)
-    #     graph.set_initial_packet(summer.inputs.recursion, 0)
-    #     graph.connect(summer.outputs.sum, shower.inputs.in1)
-    #     graph()
+
 
     def testSplit(self):
         source1 = components.IterSource('s1', (i for i in range(3)),(i for i in range(3)),)

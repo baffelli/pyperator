@@ -1,6 +1,7 @@
 import asyncio
 import textwrap as _tw
 # from .gui import create_gui
+import pyperator.exceptions
 from . import logging as _log
 import logging
 
@@ -41,7 +42,7 @@ class Multigraph:
                 if not self.hasnode(port.component):
                     self._nodes.add(port.component)
             except:
-                raise _ut.PortNotExistingException('Port {} does not exist'.format(port))
+                raise pyperator.exceptions.PortNotExistingException('Port {} does not exist'.format(port))
                 self._log.ERROR("Port {} does not exist".format(port))
         port1.connect(port2)
         self._arcs.update(port1.connect_dict)
