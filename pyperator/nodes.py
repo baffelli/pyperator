@@ -88,7 +88,7 @@ class Component(AbstractComponent):
         packets = await self.inputs.receive_packets()
         for p in packets.values():
             if p.is_eos:
-                print('eos')
+                raise StopIteration
         return packets
 
     def send_packets(self, packets):

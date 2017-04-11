@@ -73,6 +73,26 @@ class GlobSource(Component):
         raise StopIteration('Exhausted Files')
 
 
+class Product(Component):
+    """
+    This component generates the
+    cartesian product of all incoming packets and
+    then sends them
+    """
+
+    @log_schedule
+    async def __call__(self):
+        received = []
+        while True:
+            #Receive all packets
+            try:
+                current = await self.receive_packets()
+                received.append(current)
+            except StopIteration:
+                self._log.debug('')
+                break
+
+
 class FileListSource(Component):
     """
     This is a component that emits FilePackets
