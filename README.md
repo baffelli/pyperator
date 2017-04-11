@@ -1,3 +1,5 @@
+[![Travis](https://travis-ci.org/baffelli/pyperator.svg?branch=master)](https://travis-ci.org/baffelli/pyperator.svg?branch=master)
+
 # Pyperator
 Pyperator is a simple python workflow library based on asyncio. Freely inspired by other flow-based programming tools such as [noflo](https://noflojs.org/)
 [scipipe](https://github.com/scipipe/scipipe/) and many [others](https://github.com/pditommaso/awesome-pipeline).
