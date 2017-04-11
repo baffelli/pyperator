@@ -1,6 +1,5 @@
 import asyncio
 import glob as _glob
-import itertools
 import itertools as _iter
 import subprocess as _sub
 
@@ -62,7 +61,7 @@ class GlobSource(Component):
     @log_schedule
     async def __call__(self):
         files = _glob.glob(self.pattern)
-        start_message = "Component {}: will emit the following files {}".format(self.name, self.pattern)
+        start_message = "Component {}: using glob pattern {} will emit {} files: {}".format(self.name, self.pattern, len(files), files)
         self._log.info(start_message)
         for file in files:
             p = IP.FilePacket(file, owner=self)
@@ -188,7 +187,7 @@ class ConstantSource(Component):
 
     @log_schedule
     async def __call__(self):
-        for i in itertools.count():
+        for i in _iter.count():
             if self.repeat and i >= self.repeat:
                 return
             else:
@@ -296,11 +295,6 @@ class Shell(Component):
         self.output_formatters[port] = lambda inputs, outputs, wildcards: path
 
     def DynamicFormatter(self, outport, pattern):
-        def partial_formatter(pattern, **kwargs):
-            for kw, value in kwargs.items():
-                pattern = _ft.partial(pattern.format, **{kw:value})
-                print(pattern())
-
         self.output_formatters[outport] = lambda inputs, outputs, wildcards: pattern.format(inputs=inputs,
                                                                                             outputs=outputs,
                                                                                             wildcards=wildcards)
@@ -347,6 +341,8 @@ class Shell(Component):
                 ex_text = 'Component {}: Port {} does not have a path formatter specified'.format(self.name, out)
                 self._log.error(ex_text)
                 raise FormatterError(ex_text)
+            except Exception as e:
+                print(e)
         return out_paths, wildcards
 
     def generate_packets(self, out_paths):
@@ -364,6 +360,7 @@ class Shell(Component):
         while True:
             # Wait for all upstram to be completed
             received_packets = await self.receive_packets()
+            print(received_packets)
             # Generate output paths
             out_paths, wildcards = self.generate_output_paths(received_packets)
             out_packets = self.generate_packets(out_paths)
@@ -402,8 +399,7 @@ class Shell(Component):
                     self._log.error(missing_err)
                     raise FileNotExistingError(missing_err)
             else:
-                self._log.debug(
+                self._log.info(
                     "Component {}: All output files exist, command will not be run".format(self.name))
-
             await asyncio.wait(self.send_packets(out_packets))
             await asyncio.sleep(0)

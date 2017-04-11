@@ -1,7 +1,5 @@
 import asyncio
-import queue as _qu
 import textwrap as _tw
-from aiohttp import web
 # from .gui import create_gui
 from . import logging as _log
 import logging
