@@ -38,6 +38,42 @@ A simple example workflow summing two numbers and printing the result can be bui
         #Execute dag
         graph()
 ```     
+## How to use Pyperator
+
+Creating a pyperator workflow requires three steps:
+1. Define/import components
+2. Define input/output ports 
+3. create a graph by connecting ports
+
+### Define components
+Each pyperator component should be built subclassing `pyperator.nodes.Component`, which is in turn subclassed from the `AbstractComponent`, which has `__call__` as a abstract method. Your component should implement the `__call__` 
+coroutine. An example of a simple component passing everything through:
+```python
+from pyperator import components
+from pyperator.nodes import Component
+from pyperator.utils import InputPort, OutputPort, FilePort, Wildcards
+class PassThrough(Component):
+    """
+    This is a component that resends the same packets it receives
+    """
+
+    def __init__(self, name, generator, output='OUT'):
+        super(GeneratorSource, self).__init__(name)
+        self._gen = generator
+        self.outputs.add(OutputPort(output))
+
+    @log_schedule
+    async def __call__(self):
+        for g in self._gen:
+            # We dont need to wait for incoming data
+            await asyncio.wait(self.send_to_all(g))
+            await asyncio.sleep(0)
+        await self.close_downstream()
+
+```
+
+### 
+
 ## Advanced example
 ```python
         from pyperator.DAG import  Multigraph
