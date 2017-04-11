@@ -3,27 +3,11 @@ import glob as _glob
 import itertools as _iter
 import subprocess as _sub
 
-from pyperator.IP import FileNotExistingError, Bracket
-
+from pyperator.IP import  Bracket
+from pyperator.exceptions import FormatterError, CommandFailedError, FileNotExistingError
 from . import IP
 from .nodes import Component
 from .utils import InputPort, OutputPort, log_schedule, FilePort, Wildcards
-
-import functools as _ft
-
-class FormatterError(BaseException):
-    def __init__(self, *args, **kwargs):
-        BaseException.__init__(self, *args, **kwargs)
-
-
-class WildcardNotExistingError(BaseException):
-    def __init__(self, *args, **kwargs):
-        BaseException.__init__(self, *args, **kwargs)
-
-
-class CommandFailedError(BaseException):
-    def __init__(self, *args, **kwargs):
-        BaseException.__init__(self, *args, **kwargs)
 
 
 class GeneratorSource(Component):
@@ -89,6 +73,7 @@ class Product(Component):
         async for packet_dict in self.inputs:
             for port, packet in packet_dict.items():
                 all_packets[port].append(packet)
+        print(all_packets)
         async with self.outputs.OUT:
             for it, p in enumerate(_iter.product(all_packets.values(), repeat=2)):
                 print(it)
@@ -409,12 +394,12 @@ class Shell(Component):
                 proc = _sub.Popen(formatted_cmd, shell=True, stdout=stdout, stderr=stderr)
                 stdoud, stderr = proc.communicate()
                 if proc.returncode != 0:
-                    ext_str = "Component {}: running command '{}' failed with output: \n {}".format(self.name,
-                                                                                                    formatted_cmd,
-                                                                                                    stderr.strip())
-                    self._log.error(ext_str)
-                    # await self.close_downstream()
-                    raise CommandFailedError(ext_str)
+                    fail_str = "running command '{}' failed with output: \n {}".format( formatted_cmd, stderr.strip())
+                    ext_str = "Component {}: ".format(self.name,) + fail_str
+                    e = CommandFailedError(self, fail_str)
+                    self._log.error(e)
+                    raise e
+
                 else:
                     success_str = "Component {}: command successfully run, with output: {}".format(self.name, stdout)
                     self._log.info(success_str)
