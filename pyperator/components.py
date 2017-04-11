@@ -77,20 +77,29 @@ class Product(Component):
     """
     This component generates the
     cartesian product of all incoming packets and
-    then sends them
+    then sends them to the output port `OUT` as bracket Ip
     """
+
+    def __init__(self, name):
+        super().__init__(name)
 
     @log_schedule
     async def __call__(self):
-        received = []
-        while True:
-            #Receive all packets
-            try:
-                current = await self.receive_packets()
-                received.append(current)
-            except StopIteration:
-                self._log.debug('')
-                break
+        #Receive all packets
+        all_packets = {k:[] for k in self.inputs.keys()}
+        async for packet_dict in self.inputs:
+            for port, packet in packet_dict.items():
+                all_packets[port].append(packet)
+        print(all_packets)
+        for it, p in enumerate(_iter.product(all_packets.values(), repeat=2)):
+            print(it)
+            out_packet = IP.Bracket(owner=self)
+            p_new = [p1.copy() for p1 in p]
+            out_packet.append(p_new)
+            await self.outputs.OUT.send_packet(out_packet)
+            await asyncio.wait(0)
+        await self.close_downstream()
+
 
 
 class FileListSource(Component):

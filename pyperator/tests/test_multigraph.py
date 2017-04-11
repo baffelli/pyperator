@@ -386,3 +386,20 @@ class TestMultigraph(TestCase):
         graph()
 
 
+
+    def testProduct(self):
+        source1 = GeneratorSource('s1', (1 for i in range(5)))
+        source2 = GeneratorSource('s2', (2 for i in range(5)))
+        p = components.Product('prod')
+        printer = ShowInputs('printer')
+        printer.inputs.add(InputPort('IN'))
+        p.inputs.add(InputPort('i'))
+        p.inputs.add(InputPort('j'))
+        p.outputs.add(OutputPort('OUT'))
+        g = Multigraph()
+        g.connect(source1.outputs.OUT, p.inputs.i)
+        g.connect(source2.outputs.OUT, p.inputs.j)
+        g.connect(p.outputs.OUT, printer.inputs.IN)
+        g()
+
+
