@@ -89,7 +89,10 @@ class TestMultigraph(TestCase):
 
 
 
-
+    def testNonExistingPort(self):
+        c1 = Component('c1')
+        with self.assertRaises(pyper.utils.PortNotExistingException):
+            c1.outputs.c
 
     def testPortUniqueness(self):
         """Test if ports with the same name are unique"""
@@ -103,6 +106,15 @@ class TestMultigraph(TestCase):
         c1.outputs.add(OutputPort('a'))
         c1.outputs.add(OutputPort('b'))
         self.assertEquals(c1.outputs.a, c1.outputs['a'])
+
+
+    def testOutputReceive(self):
+        c1 = Component('c1')
+        c1.outputs.add(OutputPort('a'))
+        async def test():
+            await c1.outputs.a.receive()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(test())
 
     def testSendReceive(self):
         c1 = Component('c1')

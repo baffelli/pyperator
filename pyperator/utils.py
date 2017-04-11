@@ -115,20 +115,57 @@ def log_schedule(method):
     return inner
 
 
-class PortNotExistingException(BaseException):
-    pass
+
+class PortException(BaseException):
+    def __init__(self, message, channel, *args):
+        try:
+            new_message = "Component {}: Port {} {}".format(channel.component, channel.name, message)
+        except:
+            new_message = 'fail'
+        super(PortException,self).__init__(new_message, *args)
+
+
+class ComponentException(BaseException):
+    def __init__(self, message, component, *args):
+        try:
+            new_message = "Component {}: {}".format(component, message)
+        except:
+            new_message = 'fail'
+        super(ComponentException,self).__init__(new_message, *args)
+
+
+
+class PortNotExistingException(ComponentException):
+    def __init__(self, component, item, *args):
+        super(PortNotExistingException, self).__init__("port {} does not exist.".format(item), component)
 
 
 class StopComputation(StopIteration):
     pass
 
 
-class PortDisconnectedError(BaseException):
-    pass
+class PortDisconnectedError(PortException):
+    def __init__(self, channel, *args):
+        super(PortDisconnectedError, self).__init__("is disconnected", channel)
+
+
+class OutputOnlyError(PortException):
+    def __init__(self, channel, *args):
+        super(OutputOnlyError, self).__init__("is a OutputPort, it cannot be used to receive.", channel, *args)
+
+
+class InputOnlyError(PortException):
+    def __init__(self, channel, *args):
+        super(InputOnlyError, self).__init__("is a InputPort, it cannot be used to send.", channel, *args)
 
 
 class MultipleConnectionError(BaseException):
     pass
+
+
+class PortClosedError(PortException):
+    def __init__(self, channel, *args):
+        super(PortClosedError, self).__init__("is closed", channel, *args)
 
 
 class Port:
@@ -138,6 +175,7 @@ class Port:
         self.other = []
         self.queue = asyncio.Queue()
         self.packet_factory = InformationPacket
+        self._open = True
 
     def set_initial_packet(self, value):
         self._component.log.debug("Set initial message for {} at port {}".format(self.name, self.component))
@@ -180,35 +218,36 @@ class Port:
 
     async def send_packet(self, packet):
         if self.is_connected:
-            if packet.exists:
-                if packet.owner == self.component or packet.owner == None:
-                    for other in self.other:
-                        self.component._log.debug(
-                            "Component {}: sending {} to {}".format(self.component, str(packet), self.name))
-                        await other.queue.put(packet)
+            if self._open:
+                if packet.exists:
+                    if packet.owner == self.component or packet.owner == None:
+                        for other in self.other:
+                            self.component._log.debug(
+                                "Component {}: sending {} to {}".format(self.component, str(packet), self.name))
+                            await other.queue.put(packet)
+                    else:
+                        error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
+                            self.component, str(packet), self.name)
+                        self.component._log.error(error_message)
+                        raise IP.PacketOwnedError(error_message)
                 else:
-                    error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
-                        self.component, str(packet), self.name)
-                    self.component._log.error(error_message)
-                    raise IP.PacketOwnedError(error_message)
+                    ex_str = 'Component {}, Port {}: The information packet with path {} does not exist'.format(
+                        self.component, self.port, packet.path)
+                    self.component._log.error(ex_str)
+                    raise IP.FileNotExistingError(ex_str)
             else:
-                ex_str = 'Component {}, Port {}: The information packet with path {} does not exist'.format(
-                    self.component, self.port, packet.path)
-                self.component._log.error(ex_str)
-                raise IP.FileNotExistingError(ex_str)
+                raise PortClosedError()
         else:
             ex_str = '{} is not connected'.format(self.name)
             # logging.getLogger('root').error(ex_str)
-            raise PortDisconnectedError(ex_str)
+            raise PortDisconnectedError()
 
     async def send(self, data):
         if self.is_connected:
-            for other in self.other:
-                packet = self.packet_factory(data, owner=self.component)
-                packet.owner = self.component
-                await other.queue.put(packet)
-        else:
-            return
+            packet = self.packet_factory(data, owner=self.component)
+            packet.owner = self.component
+            await self.send_packet(packet)
+
 
     async def receive_packet(self):
         if self.is_connected:
@@ -217,12 +256,14 @@ class Port:
             logging.getLogger('root').debug(
                 "Component {}: received {} from {}".format(self.component, packet, self.name))
             self.queue.task_done()
-            if packet.is_eos:
+            if packet.is_eos and self.queue.empty():
                 self.component._log.info(
                     "Component {}: stopping because {} was received".format(self.component, packet))
-                raise StopComputation('Done')
+                raise StopAsyncIteration
             else:
                 return packet
+        else:
+            raise PortDisconnectedError
 
     def __aiter__(self):
         return self
@@ -234,10 +275,19 @@ class Port:
         except:
             raise StopAsyncIteration
 
+    async def __aenter__(self):
+        await asyncio.sleep(0)
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
     async def close(self):
         packet = EndOfStream()
         packet.owner = self.component
         await self.send_packet(packet)
+        self._open = False
+        self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
+
 
     @property
     def path(self):
@@ -277,7 +327,13 @@ class FilePort(Port):
 
 
 class OutputPort(Port):
-    pass
+
+    def __init__(self, *args, **kwargs):
+        super(OutputPort, self).__init__(*args, **kwargs)
+
+    async def receive_packet(self):
+        raise OutputOnlyError(self)
+
 
 
 class InputPort(Port):
@@ -295,7 +351,7 @@ class InputPort(Port):
             raise MultipleConnectionError(ext_text)
 
     async def send_packet(self, packet):
-        return
+        raise InputOnlyError(self)
 
 
 class PortRegister:
@@ -307,16 +363,14 @@ class PortRegister:
         try:
             port.component = self.component
         except AttributeError:
-            raise PortNotExistingException(
-                'Component {}: The port named {} does not exist'.format(self.component, port))
+            raise  PortNotExistingException(self.component, port)
         self.ports.update({port.name: port})
 
     def __getitem__(self, item):
         if item in self.ports:
             return self.ports.get(item)
         else:
-            raise PortNotExistingException(
-                'Component {}: The port named {} does not exist'.format(self.component, item))
+            raise PortNotExistingException(self.component, item)
 
     def __getattr__(self, item):
         return self[item]
@@ -359,7 +413,8 @@ class PortRegister:
         try:
             packets = await self.receive_packets()
             return packets
-        except:
+        except StopAsyncIteration as e:
+            print(e)
             raise StopAsyncIteration
 
 
