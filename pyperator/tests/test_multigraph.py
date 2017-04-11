@@ -1,12 +1,13 @@
 from unittest import TestCase
 
-from ..DAG import  Multigraph
-from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource, Filter, OneOffProcess
-from .. import components
-from ..nodes import Component
+from pyperator.DAG import Multigraph
+from pyperator.components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource, Filter, OneOffProcess
+from pyperator import components
+from pyperator.nodes import Component
 import asyncio
-from ..utils import InputPort, OutputPort, FilePort, Wildcards
-from .. import IP
+from pyperator.utils import InputPort, OutputPort, FilePort, Wildcards
+from pyperator import IP
+import pyperator as pyper
 
 import os
 import uuid
@@ -82,8 +83,12 @@ class TestMultigraph(TestCase):
         c2 = Component('c2')
         c2.inputs.add(InputPort('a'))
         graph = Multigraph()
-        graph.connect(c1.outputs.a, c2.inputs.a)
-        graph.connect(c1.outputs.b, c2.inputs.a)
+        with self.assertRaises(pyper.utils.MultipleConnectionError):
+            graph.connect(c1.outputs.a, c2.inputs.a)
+            graph.connect(c1.outputs.b, c2.inputs.a)
+
+
+
 
 
     def testPortUniqueness(self):
@@ -128,6 +133,37 @@ class TestMultigraph(TestCase):
         futures = [asyncio.ensure_future(send([1,2,3,4,5])),asyncio.ensure_future(receive())]
         loop = asyncio.get_event_loop()
         loop.run_until_complete(futures[1])
+
+
+    def testPortAiter(self):
+        source = GeneratorSource('s', source_gen)
+        printer = ShowInputs('in')
+        printer.inputs.add(InputPort('in1'))
+        g = Multigraph()
+        g.connect(source.outputs.OUT, printer.inputs.in1)
+        async def receive_all():
+            received = []
+            print('receiving')
+            async for s in printer.inputs.in1:
+                received.append(s)
+            print(received)
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(asyncio.gather(source(),receive_all()))
+
+    def testRegisterAiter(self):
+        source = GeneratorSource('s', source_gen)
+        printer = ShowInputs('in')
+        printer.inputs.add(InputPort('in1'))
+        g = Multigraph()
+        g.connect(source.outputs.OUT, printer.inputs.in1)
+        async def receive_all():
+            received = []
+            print('receiving')
+            async for s in printer.inputs:
+                received.append(s)
+            print(received)
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(asyncio.gather(source(),receive_all()))
 
 
     def testLinearPipeline(self):
@@ -181,13 +217,13 @@ class TestMultigraph(TestCase):
             outfile.write(graph.dot())
         graph()
 
-    def testConstantSource(self):
-        source1 = ConstantSource('s1', 3)
-        shower = ShowInputs('printer')
-        shower.inputs.add(InputPort('in1'))
-        graph = Multigraph()
-        graph.connect(source1.outputs['OUT'], shower.inputs.in1)
-        graph()
+    # def testConstantSource(self):
+    #     source1 = ConstantSource('s1', 3)
+    #     shower = ShowInputs('printer')
+    #     shower.inputs.add(InputPort('in1'))
+    #     graph = Multigraph()
+    #     graph.connect(source1.outputs['OUT'], shower.inputs.in1)
+    #     graph()
 
 
 
@@ -206,19 +242,19 @@ class TestMultigraph(TestCase):
         graph.connect(summer.outputs.sum, shower.inputs.in1)
         graph()
 
-    def testInfiniteRecursion(self):
-        source1 = ConstantSource('s1', 3)
-        shower = ShowInputs('printer', inputs=['in1'])
-        summer = BroadcastApplyFunction('summer', adder )
-        summer.inputs.add(InputPort('in1'))
-        summer.inputs.add(InputPort('recursion'))
-        summer.outputs.add(OutputPort('sum'))
-        graph = Multigraph()
-        graph.connect(source1.outputs.OUT, summer.inputs.in1)
-        graph.connect(summer.outputs.sum, summer.inputs.recursion)
-        graph.set_initial_packet(summer.inputs.recursion, 0)
-        graph.connect(summer.outputs.sum, shower.inputs.in1)
-        graph()
+    # def testInfiniteRecursion(self):
+    #     source1 = ConstantSource('s1', 3)
+    #     shower = ShowInputs('printer', inputs=['in1'])
+    #     summer = BroadcastApplyFunction('summer', adder )
+    #     summer.inputs.add(InputPort('in1'))
+    #     summer.inputs.add(InputPort('recursion'))
+    #     summer.outputs.add(OutputPort('sum'))
+    #     graph = Multigraph()
+    #     graph.connect(source1.outputs.OUT, summer.inputs.in1)
+    #     graph.connect(summer.outputs.sum, summer.inputs.recursion)
+    #     graph.set_initial_packet(summer.inputs.recursion, 0)
+    #     graph.connect(summer.outputs.sum, shower.inputs.in1)
+    #     graph()
 
     def testSplit(self):
         source1 = components.IterSource('s1', (i for i in range(3)),(i for i in range(3)),)
