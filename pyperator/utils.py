@@ -166,6 +166,17 @@ class Port:
     def iterends(self):
         yield from self.other
 
+
+    def __lshift__(self, other):
+        """
+        Nicer form of connect, used
+        to connect two ports as
+        a >> b
+        :param other:
+        :return:
+        """
+        self.connect(other)
+
     def connect(self, other_port):
         if other_port not in self.other:
             self.other.append(other_port)
