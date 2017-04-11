@@ -3,15 +3,12 @@ import re as _re
 from collections import OrderedDict as _od
 from collections import namedtuple as nt
 
-import pyparsing as _pp
-
 from . import IP
 from .IP import InformationPacket, EndOfStream, FilePacket
 
 conn_template = "{component.name}:{name}"
 
 import logging
-
 
 # def reAction(s, l, t):
 #     try:
@@ -39,7 +36,7 @@ import logging
 # re_sep = _pp.Literal(',').suppress()
 
 
-#Constraint for regex (from snakemake)
+# Constraint for regex (from snakemake)
 regex_wildcards = _re.compile(
     r"""
     \{
@@ -53,7 +50,6 @@ regex_wildcards = _re.compile(
         ))\1
     \}
     """, _re.VERBOSE)
-
 
 
 # wildcard = (wc_open + (wc_content)('wc_name') + _pp.Optional(re_sep + re('re')) + wc_close)
@@ -78,26 +74,24 @@ class Wildcards(object):
             constaints[wc_name] = a.group('wc_re') or '.+'
         return wc, constaints
 
-
     def replace_constraints(self):
         def constraint_replacer(match):
             return '{{{wc}}}'.format(wc=match.group('wc_name'))
+
         replaced = _re.sub(regex_wildcards, constraint_replacer, self.pattern)
         return replaced
 
-
-
     def parse(self, string):
         wildcards, constraints = self.get_wildcards()
-        search_dic ={wc:"(?P<{wc}>{constraint})".format(wc=wc, constraint=constraint)  for wc, constraint in constraints.items()}
-        path_without_constraints = self.replace_constraints().replace('.', '\.')#escape dots
+        search_dic = {wc: "(?P<{wc}>{constraint})".format(wc=wc, constraint=constraint) for wc, constraint in
+                      constraints.items()}
+        path_without_constraints = self.replace_constraints().replace('.', '\.')  # escape dots
         res = _re.compile(path_without_constraints.format(**search_dic)).search(string)
         wc_dic = {}
         for wc_name, wc_value in res.groupdict().items():
             wc_dic[wc_name] = wc_value
         wc_nt = nt('wc', wc_dic.keys())(**wc_dic)
         return wc_nt
-
 
 
 class Default(dict):
@@ -112,7 +106,10 @@ class Default(dict):
 
 def log_schedule(method):
     def inner(instance):
-        instance._log.info('Component {}: Scheduled'.format(instance.name))
+        try:
+            instance._log.info('Component {}: Scheduled'.format(instance.name))
+        except AttributeError:
+            pass
         return method(instance)
 
     return inner
@@ -166,8 +163,7 @@ class Port:
     def iterends(self):
         yield from self.other
 
-
-    def __lshift__(self, other):
+    def __rshift__(self, other):
         """
         Nicer form of connect, used
         to connect two ports as
@@ -227,6 +223,16 @@ class Port:
                 raise StopComputation('Done')
             else:
                 return packet
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            packet = await self.receive_packet()
+            return packet
+        except:
+            raise StopAsyncIteration
 
     async def close(self):
         packet = EndOfStream()
@@ -315,8 +321,6 @@ class PortRegister:
     def __getattr__(self, item):
         return self[item]
 
-
-
     def __iter__(self):
         return self.ports.__iter__()
 
@@ -347,6 +351,17 @@ class PortRegister:
             data = await v
             packets[k] = data
         return packets
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            packets = await self.receive_packets()
+            return packets
+        except:
+            raise StopAsyncIteration
+
 
     def send_packets(self, packets):
         futures = []
