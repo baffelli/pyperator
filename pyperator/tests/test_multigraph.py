@@ -5,7 +5,7 @@ from ..components import GeneratorSource, ShowInputs, BroadcastApplyFunction, Co
 from .. import components
 from ..nodes import Component
 import asyncio
-from ..utils import InputPort, OutputPort, FilePort
+from ..utils import InputPort, OutputPort, FilePort, Wildcards
 from .. import IP
 
 import os
@@ -39,6 +39,15 @@ class TestPacket(TestCase):
         unique_file = os.path.dirname(__file__) + '/' + str(uuid.uuid4())
         b = IP.FilePacket(unique_file)
         print(str(b))
+
+
+class TestWildcards(TestCase):
+
+    def TestEscape(self):
+        a = '{value}.{ext}'
+        w = Wildcards(a)
+        wildcards = w.parse('prova.txt')
+        print(wildcards.__dict__)
 
 class TestMultigraph(TestCase):
 
@@ -267,6 +276,25 @@ class TestMultigraph(TestCase):
         graph = Multigraph()
         graph.connect(source1.outputs.OUT, toucher.inputs.i)
         graph.connect(toucher.outputs.f1, printer.inputs.f2)
+        graph()
+
+
+    def testWildcardsFormatter(self):
+        #Source
+        source1 = GeneratorSource('s1', (i for i in range(5)))
+        toucher = components.Shell('shell', "echo '{inputs.i.value}, {inputs.i.value} to {outputs.f1.path}' > {outputs.f1.path}")
+        toucher.outputs.add(FilePort('f1'))
+        toucher.inputs.add(InputPort('i'))
+        toucher.DynamicFormatter('f1', "{inputs.i.value}.prova")
+        #add transformation
+        transformer = components.Shell('transf', "cp {inputs.IN.path} {outputs.out.path}")
+        transformer.inputs.add(FilePort('IN'))
+        transformer.outputs.add(FilePort('out'))
+        transformer.WildcardsExpression('IN', "{value}.{ext}")
+        transformer.DynamicFormatter('out', '{wildcards.IN.pane}.txt1')
+        graph = Multigraph()
+        graph.connect(source1.outputs.OUT, toucher.inputs.i)
+        graph.connect(toucher.outputs.f1, transformer.inputs.IN)
         graph()
 
     def testCombinatorialFormatter(self):
