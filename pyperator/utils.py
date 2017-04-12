@@ -164,7 +164,6 @@ class Port:
 
 
     def connect(self, other_port):
-        print(self, self.other)
         if other_port not in self.other:
             self.other.append(other_port)
             # other_port.connect(self)

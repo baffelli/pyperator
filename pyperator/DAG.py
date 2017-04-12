@@ -1,11 +1,12 @@
 import asyncio
 import textwrap as _tw
 # from .gui import create_gui
-import pyperator.exceptions
+from . import exceptions
 from . import logging as _log
 import logging
 
 from . import utils as _ut
+
 
 import os as _os
 
@@ -14,7 +15,12 @@ from . import nodes
 import __main__ as main
 
 
-class Multigraph(pyperator.nodes.Component):
+_global_dag = None
+
+
+
+
+class Multigraph():
     def __init__(self, log_path=None, name=None, log_level=logging.DEBUG):
         # self._arcs = {}
         self._nodes = set()
@@ -43,7 +49,7 @@ class Multigraph(pyperator.nodes.Component):
                 if not self.hasnode(port.component):
                     self._nodes.add(port.component)
             except:
-                raise pyperator.exceptions.PortNotExistingError('Port {} does not exist'.format(port))
+                raise exceptions.PortNotExistingError('Port {} does not exist'.format(port))
                 self._log.ERROR("Port {} does not exist".format(port))
         port1.connect(port2)
         # self._arcs.update(port1.connect_dict)
@@ -63,9 +69,11 @@ class Multigraph(pyperator.nodes.Component):
 
     def __radd__(self, other):
         self.add_node(other)
+        return self
 
     def __add__(self, other):
         self.add_node(other)
+        return self
 
 
     def hasarc(self, node1, node2, outport, inport):
@@ -102,11 +110,14 @@ class Multigraph(pyperator.nodes.Component):
             return
 
     def __enter__(self):
+        global _global_dag
+        self._old_dag = _global_dag
+        _global_dag = self
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            return exc_type
+        global _global_dag
+        _global_dag = self._old_dag
 
 
     def dfs(self):

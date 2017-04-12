@@ -3,6 +3,7 @@ from abc import ABCMeta, abstractmethod
 
 from . import IP
 from .utils import PortRegister, FilePort
+from . import DAG
 
 
 class AbstractComponent(metaclass=ABCMeta):
@@ -25,7 +26,13 @@ class Component(AbstractComponent):
         # Color of the node
         self.color = 'grey'
         self._log = None
-        self.dag = None
+        #This is an horrible
+        #way to ad a component to
+        #the global dag defined whitin
+        #a context manager
+        self.dag = DAG._global_dag or None
+        if self.dag:
+            self.dag.add_node(self)
 
     def __repr__(self):
         st = "{}".format(self.name)
@@ -120,16 +127,28 @@ class Component(AbstractComponent):
 
     def __lshift__(self, port):
         """
-        Adds an :class:`pyperator.utils.port` to the component inputs
+        Adds an :class:`pyperator.utils.port` to the component inputs.
+        Equivalent to :code:`self.inputs.add(other)`
 
         :param port: :class:`pyperator.utils.port`
-        :raises
-        :return: None
+        :return: :class:`pyperator.nodes.Component`
         """
         self.inputs.add(port)
+        return self
 
     def __rshift__(self, other):
+        """
+        Adds an :class:`pyperator.utils.port` to the component outputs.
+        Equivalent to :code:`self.outputs.add(port)`
+
+        :param other: :class:`pyperator.utils.port`
+        :return: :class:`pyperator.nodes.Component`
+        """
         self.outputs.add(other)
+        return self
+
+
+
 
     async def __call__(self):
         pass
