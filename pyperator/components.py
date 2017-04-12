@@ -72,13 +72,12 @@ class Product(Component):
         async for packet_dict in self.inputs:
             for port, packet in packet_dict.items():
                 all_packets[port].append(packet)
-        print(all_packets)
         async with self.outputs.OUT:
             for it, p in enumerate(_iter.product(*all_packets.values())):
                 out_packet = IP.Bracket(owner=self)
-                [out_packet.append(p1.copy()) for p1 in p]
+                [out_packet.append_packet(p1.copy()) for p1 in p]
                 await self.outputs.OUT.send_packet(out_packet)
-                # await asyncio.sleep(0)
+                await asyncio.sleep(0)
 
 
 class FileListSource(Component):
@@ -198,7 +197,7 @@ class ConstantSource(Component):
             if self.repeat and i >= self.repeat:
                 return
             else:
-                packet = IP.InformationPacket
+                # packet = IP.InformationPacket
                 await asyncio.wait(self.send_to_all(self.constant))
                 await asyncio.sleep(0)
 
@@ -279,20 +278,18 @@ class ShowInputs(Component):
             self._log.debug(show_str)
             print(show_str)
 
-
-class Shell(Component):
+class FileOperator(Component):
     """
-    This component executes a shell script with inputs and outputs
-    the command can contain normal ports and FilePorts
-    for input and output
+    This component operates on files, it supports
+    wilcard expressions and output file formatters based on
+    input files, i.e extracting part of the paths to generate output paths
     """
-
-    def __init__(self, name, cmd):
-        super(Shell, self).__init__(name)
-        self.cmd = cmd
+    def __init__(self, name):
+        super(FileOperator, self).__init__(name)
         self.output_formatters = {}
         # Input ports may have wildcard expressions attached
         self.wildcard_expressions = {}
+
 
     def FixedFormatter(self, port, path):
         """
@@ -362,6 +359,11 @@ class Shell(Component):
         return {port: packet for port, packet in out_packets.items() if not packet.exists}
 
 
+    def produce_outputs(self, input_packets, output_packets, wildcards):
+        pass
+
+
+
     @log_schedule
     async def __call__(self):
         while True:
@@ -376,32 +378,21 @@ class Shell(Component):
             if missing:
                 self._log.debug(
                     "Component {}: Output files '{}' do not exist not exist, command will be run".format(self.name,
-                                                                                                         [packet.path
-                                                                                                          for packet in
-                                                                                                          missing.values()]))
+                                                                                                         [
+                                                                                                             packet.path
+                                                                                                             for
+                                                                                                             packet
+                                                                                                             in
+                                                                                                             missing.values()]))
                 inputs_obj = type('a', (object,), received_packets)
                 ouputs_obj = type('a', (object,), out_packets)
-                formatted_cmd = self.cmd.format(inputs=inputs_obj, outputs=ouputs_obj, wildcards=wildcards)
-                self._log.debug("Executing command {}".format(formatted_cmd))
-                # Define stdout and stderr pipes
-                stdout = _sub.PIPE
-                stderr = _sub.PIPE
-                proc = _sub.Popen(formatted_cmd, shell=True, stdout=stdout, stderr=stderr)
-                stdoud, stderr = proc.communicate()
-                if proc.returncode != 0:
-                    fail_str = "running command '{}' failed with output: \n {}".format( formatted_cmd, stderr.strip())
-                    ext_str = "Component {}: ".format(self.name,) + fail_str
-                    e = CommandFailedError(self, fail_str)
-                    self._log.error(e)
-                    raise e
-
-                else:
-                    success_str = "Component {}: command successfully run, with output: {}".format(self.name, stdout)
-                    self._log.info(success_str)
+                # Produce the outputs
+                out_packets = self.produce_outputs(inputs_obj, ouputs_obj, wildcards)
                 # Check if the output files exist
                 missing_after = self.enumerate_missing(out_packets)
                 if missing_after:
-                    missing_err = "Component {name}: Following files are missing {}, check the command".format(self.name, [packet.path for packet in missing_after.values()])
+                    missing_err = "Component {name}: Following files are missing {}, check the command".format(
+                        self.name, [packet.path for packet in missing_after.values()])
 
                     self._log.error(missing_err)
                     raise FileNotExistingError(missing_err)
@@ -410,3 +401,40 @@ class Shell(Component):
                     "Component {}: All output files exist, command will not be run".format(self.name))
             await asyncio.wait(self.send_packets(out_packets))
             await asyncio.sleep(0)
+
+
+
+class Shell(FileOperator):
+    """
+    This component executes a shell script with inputs and outputs
+    the command can contain normal ports and FilePorts
+    for input and output
+    """
+
+    def __init__(self, name, cmd):
+        super(Shell, self).__init__(name)
+        self.cmd = cmd
+        self.output_formatters = {}
+        # Input ports may have wildcard expressions attached
+        self.wildcard_expressions = {}
+
+    def produce_outputs(self, input_packets, output_packets, wildcards):
+        formatted_cmd = self.cmd.format(inputs=input_packets, outputs=input_packets, wildcards=wildcards)
+        self._log.debug("Executing command {}".format(formatted_cmd))
+        # Define stdout and stderr pipes
+        stdout = _sub.PIPE
+        stderr = _sub.PIPE
+        proc = _sub.Popen(formatted_cmd, shell=True, stdout=stdout, stderr=stderr)
+        stdoud, stderr = proc.communicate()
+        if proc.returncode != 0:
+            fail_str = "running command '{}' failed with output: \n {}".format(formatted_cmd, stderr.strip())
+            ext_str = "Component {}: ".format(self.name, ) + fail_str
+            e = CommandFailedError(self, fail_str)
+            self._log.error(e)
+            raise e
+        else:
+            success_str = "Component {}: command successfully run, with output: {}".format(self.name, stdout)
+            self._log.info(success_str)
+            return output_packets
+
+
