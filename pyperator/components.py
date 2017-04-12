@@ -3,8 +3,8 @@ import glob as _glob
 import itertools as _iter
 import subprocess as _sub
 
-from pyperator.IP import  Bracket
-from pyperator.exceptions import FormatterError, CommandFailedError, FileNotExistingError
+from .IP import  Bracket
+from .exceptions import FormatterError, CommandFailedError, FileNotExistingError
 from . import IP
 from .nodes import Component
 from .utils import InputPort, OutputPort, log_schedule, FilePort, Wildcards
@@ -53,7 +53,6 @@ class GlobSource(Component):
         stop_message = "Component {}: exahusted list of files".format(self.name)
         self._log.info(stop_message)
         await self.close_downstream()
-        raise StopIteration('Exhausted Files')
 
 
 class Product(Component):
@@ -73,11 +72,11 @@ class Product(Component):
         async for packet_dict in self.inputs:
             for port, packet in packet_dict.items():
                 all_packets[port].append(packet)
+        print(all_packets)
         async with self.outputs.OUT:
             for it, p in enumerate(_iter.product(*all_packets.values())):
                 out_packet = IP.Bracket(owner=self)
                 [out_packet.append(p1.copy()) for p1 in p]
-
                 await self.outputs.OUT.send_packet(out_packet)
                 # await asyncio.sleep(0)
 
@@ -175,7 +174,6 @@ class IterSource(Component):
                 packet.append(item)
             await self.outputs.OUT.send_packet(packet)
             await asyncio.sleep(0)
-        raise StopIteration('Exahusted iterator')
         await self.close_downstream()
 
 
