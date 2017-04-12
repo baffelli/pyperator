@@ -14,9 +14,9 @@ from . import nodes
 import __main__ as main
 
 
-class Multigraph:
+class Multigraph(pyperator.nodes.Component):
     def __init__(self, log_path=None, name=None, log_level=logging.DEBUG):
-        self._arcs = {}
+        # self._arcs = {}
         self._nodes = set()
         self._workdir = None
         self._log_path = log_path or main.__file__.replace('.py', '.log')
@@ -38,20 +38,34 @@ class Multigraph:
         for port in [port1, port2]:
             try:
                 #Add log to every component
+                port.component.dag = self
                 port.component._log = self._log
                 if not self.hasnode(port.component):
                     self._nodes.add(port.component)
             except:
-                raise pyperator.exceptions.PortNotExistingException('Port {} does not exist'.format(port))
+                raise pyperator.exceptions.PortNotExistingError('Port {} does not exist'.format(port))
                 self._log.ERROR("Port {} does not exist".format(port))
         port1.connect(port2)
-        self._arcs.update(port1.connect_dict)
+        # self._arcs.update(port1.connect_dict)
+
 
     def set_initial_packet(self, port, value):
         port.set_initial_packet(value)
 
     def set_kickstarter(self, port):
         port.kickstart()
+
+    def add_node(self, node):
+        node.dag = self
+        node._log = self._log
+        self._nodes.add(node)
+
+
+    def __radd__(self, other):
+        self.add_node(other)
+
+    def __add__(self, other):
+        self.add_node(other)
 
 
     def hasarc(self, node1, node2, outport, inport):
@@ -69,9 +83,16 @@ class Multigraph:
         return self._nodes.__iter__()
 
     def iterarcs(self):
-        for source in self._arcs.keys():
-            for dest in source.iterends():
-                yield (source, dest)
+        for source in self.iternodes():
+            for name,port in source.outputs.items():
+                for dest in port.iterends():
+                    yield (port, dest)
+
+
+    # def iterarcs(self):
+    #     for source in self._arcs.keys():
+    #         for dest in source.iterends():
+    #             yield (source, dest)
 
 
     def adjacent(self, node):
@@ -79,6 +100,14 @@ class Multigraph:
             yield from self._arcs[node]
         else:
             return
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            return exc_type
+
 
     def dfs(self):
         """
@@ -89,7 +118,6 @@ class Multigraph:
         def inner_dfs(G, start_node):
             seen.add(start_node)
             for node in G.adjacent(start_node):
-                print("current node {}, seen {}".format(node, seen))
                 if node not in seen:
                     seen.add(node)
                     yield node
