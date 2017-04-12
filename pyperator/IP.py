@@ -73,7 +73,7 @@ class FilePacket(InformationPacket):
         super(FilePacket, self).__init__(None, owner=owner)
         self._path = path
         self.mode = mode
-        self.tempfile = tempfile.TemporaryFile()
+        self.tempfile = None
 
     def open(self, mode='r'):
         if self.exists:
@@ -82,7 +82,7 @@ class FilePacket(InformationPacket):
             return self.open_temp()
 
     def open_temp(self):
-        return self.tempfile
+        return self.tempfile.TemporaryFile()
 
     def finalize(self):
         shutil.copy(self.tempfile, self.path)
