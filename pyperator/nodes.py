@@ -25,6 +25,7 @@ class Component(AbstractComponent):
         # Color of the node
         self.color = 'grey'
         self._log = None
+        self.dag = None
 
     def __repr__(self):
         st = "{}".format(self.name)
@@ -115,6 +116,20 @@ class Component(AbstractComponent):
 
     async def inactive(self):
         self.color = 'grey'
+
+
+    def __lshift__(self, port):
+        """
+        Adds an :class:`pyperator.utils.port` to the component inputs
+
+        :param port: :class:`pyperator.utils.port`
+        :raises
+        :return: None
+        """
+        self.inputs.add(port)
+
+    def __rshift__(self, other):
+        self.outputs.add(other)
 
     async def __call__(self):
         pass
