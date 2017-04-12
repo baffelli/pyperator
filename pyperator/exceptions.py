@@ -28,7 +28,7 @@ class StopComputation(StopIteration):
 
 class PortAlreadyConnectedError(PortError):
     def __init__(self, channel, other_channel, *args):
-        super(PortDisconnectedError, self).__init__("is already connected to {}".format(other_channel), channel)
+        super(PortAlreadyConnectedError, self).__init__("is already connected to {}".format(other_channel), channel)
 
 
 class PortDisconnectedError(PortError):
