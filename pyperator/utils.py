@@ -199,7 +199,6 @@ class Port:
     async def send(self, data):
         if self.is_connected:
             packet = self.packet_factory(data, owner=self.component)
-            packet.owner = self.component
             await self.send_packet(packet)
 
 
