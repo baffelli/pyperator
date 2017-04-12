@@ -155,19 +155,19 @@ class Port:
         """
         Nicer form of connect, used
         to connect two ports as
-        a >> b
-        :param other:
-        :return:
+        :code:`a >> b`, equivalent to :code:`a.connect(b)`
+
+        :param other: :class:`pyperator.utils.port`
+        :return: None
         """
         self.connect(other)
 
-    def __lshift__(self, other):
-        other.connect(self)
 
     def connect(self, other_port):
+        print(self, self.other)
         if other_port not in self.other:
             self.other.append(other_port)
-            other_port.connect(self)
+            # other_port.connect(self)
         else:
             raise PortAlreadyConnectedError(self, other_port)
 
