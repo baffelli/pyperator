@@ -34,7 +34,7 @@ class InformationPacket(object):
     @owner.setter
     def owner(self, value):
         if self._owner is not None:
-            raise ValueError('Cannot set owner, copy packet with new owner')
+            raise ValueError('Packet is owned by {}, Cannot set owner, copy packet with new owner'.format(self.owner))
         else:
             self._owner = value
 
@@ -167,5 +167,8 @@ class Bracket(InformationPacket):
 
     def __iter__(self):
         return self.value.__iter__()
+
+
+
 
 
