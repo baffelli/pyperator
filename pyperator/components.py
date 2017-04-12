@@ -26,7 +26,7 @@ class GeneratorSource(Component):
         async with self.outputs.OUT:
             for g in self._gen:
                 await asyncio.wait(self.send_to_all(g))
-                await asyncio.sleep(0)
+                # await asyncio.sleep(0)
 
 
 class GlobSource(Component):
@@ -59,8 +59,8 @@ class GlobSource(Component):
 class Product(Component):
     """
     This component generates the
-    cartesian product of all incoming packets and
-    then sends them to the output port `OUT` as bracket Ip
+    cartesian product of the packets incoming from each ports and
+    then sends them to the output port `OUT` as bracket IPs
     """
 
     def __init__(self, name):
@@ -73,16 +73,13 @@ class Product(Component):
         async for packet_dict in self.inputs:
             for port, packet in packet_dict.items():
                 all_packets[port].append(packet)
-        print(all_packets)
         async with self.outputs.OUT:
-            for it, p in enumerate(_iter.product(all_packets.values(), repeat=2)):
-                print(it)
+            for it, p in enumerate(_iter.product(*all_packets.values())):
                 out_packet = IP.Bracket(owner=self)
-                p_new = [p1.copy() for p1 in p]
-                out_packet.append(p_new)
-                await self.outputs.OUT.send_packet(out_packet)
-                await asyncio.wait(0)
+                [out_packet.append(p1.copy()) for p1 in p]
 
+                await self.outputs.OUT.send_packet(out_packet)
+                # await asyncio.sleep(0)
 
 
 class FileListSource(Component):

@@ -4,8 +4,8 @@ from collections import OrderedDict as _od
 from collections import namedtuple as nt
 
 import pyperator.exceptions
-from pyperator.exceptions import PortNotExistingException, PortDisconnectedError, OutputOnlyError, InputOnlyError, \
-    MultipleConnectionError, PortClosedError
+from pyperator.exceptions import PortNotExistingError, PortDisconnectedError, OutputOnlyError, InputOnlyError, \
+    MultipleConnectionError, PortClosedError, PortAlreadyConnectedError
 from . import IP
 from .IP import InformationPacket, EndOfStream, FilePacket
 
@@ -161,10 +161,15 @@ class Port:
         """
         self.connect(other)
 
+    def __lshift__(self, other):
+        other.connect(self)
+
     def connect(self, other_port):
         if other_port not in self.other:
             self.other.append(other_port)
             other_port.connect(self)
+        else:
+            raise PortAlreadyConnectedError(self, other_port)
 
     async def send_packet(self, packet):
         if self.is_connected:
@@ -296,9 +301,11 @@ class InputPort(Port):
             super(InputPort, self).connect(other_port)
             self._n_ohter += 1
         else:
-            ext_text = "A {} port only supports one incoming connection".format(type(self))
-            self.component._log.error(ext_text)
-            raise MultipleConnectionError(ext_text)
+            # ext_text = "A {} port only supports one incoming connection".format(type(self))
+            # self.component._log.error(ext_text)
+            e = MultipleConnectionError(self)
+            self.component._log.error(e)
+            raise e
 
     async def send_packet(self, packet):
         raise InputOnlyError(self)
@@ -313,15 +320,14 @@ class PortRegister:
         try:
             port.component = self.component
         except AttributeError:
-            raise  PortNotExistingException(self.component, port)
+            raise PortNotExistingError(self.component, port)
         self.ports.update({port.name: port})
 
     def __getitem__(self, item):
         if item in self.ports:
             return self.ports.get(item)
         else:
-            raise PortNotExistingException(self.component, item)
-
+            raise PortNotExistingError(self.component, str(item))
     def __getattr__(self, item):
         return self[item]
 
@@ -364,7 +370,6 @@ class PortRegister:
             packets = await self.receive_packets()
             return packets
         except StopAsyncIteration as e:
-            print(e)
             raise StopAsyncIteration
 
 
