@@ -49,7 +49,7 @@ Creating a pyperator workflow requires three steps:
 
 ### Define components
 Each pyperator component should be built subclassing `pyperator.nodes.Component`, which is in turn subclassed from the `AbstractComponent`, which has `__call__` as a abstract method. Your component should implement the `__call__` 
-coroutine. An example of a simple component passing everything through:
+coroutine. An example of a simple component passing everything it receives from "IN" to "OUT":
 ```python
 from pyperator import components
 from pyperator.nodes import Component
@@ -59,18 +59,19 @@ class PassThrough(Component):
     This is a component that resends the same packets it receives
     """
 
-    def __init__(self, name, generator, output='OUT'):
-        super(GeneratorSource, self).__init__(name)
-        self._gen = generator
-        self.outputs.add(OutputPort(output))
+    def __init__(self, name):
+        super(PassThrough, self).__init__(name)
+        self.inputs.add(InputPort("IN"))
+        self.outputs.add(OutputPort("OUT"))
 
     @log_schedule
     async def __call__(self):
-        for g in self._gen:
-            # We dont need to wait for incoming data
-            await asyncio.wait(self.send_to_all(g))
-            await asyncio.sleep(0)
-        await self.close_downstream()
+        while True:
+                in_packets = await sefl.inputs.IN.receive()
+                #this is critical, a packet has to be copied before
+                #being sent again
+                copied = in_packets.copy()
+                await self.outputs.OUT.send_packet(copied)
 
 ```
 To receive packets from a channel named "IN", you should use `packet = await self.inputs.IN.receive_packet()`. The input and output PortRegister support two forms of indexing:
@@ -80,6 +81,11 @@ To receive packets from a channel named "IN", you should use `packet = await sel
 * Selecting them as attributes of the PortRegister, i.e `self.inputs.IN`
 
 Likewise, sending packets is accomplished by issuing `await self.outputs.OUT.send(packet)`.
+
+Now, we define a second components that creates some interesting packets. This component will be a source component, it will not have any input ports:
+```python
+
+```
 
 ### Define Input/Output Ports
 
@@ -111,6 +117,13 @@ c1.outputs.add.OutputPort("OUT1")
 
 ```
 Now, c1 will have two `InputPort`s, "IN" and "IN1" and two `OutputPorts`"OUT" and "OUT1".
+
+### Create a graph
+
+Finally, several components can be tied together using a MultiGraph:
+```python
+
+```
 
 ### 
 
