@@ -49,29 +49,35 @@ Creating a pyperator workflow requires three steps:
 
 ### Define components
 Each pyperator component should be built subclassing `pyperator.nodes.Component`, which is in turn subclassed from the `AbstractComponent`, which has `__call__` as a abstract method. Your component should implement the `__call__` 
-coroutine. An example of a simple component passing everything it receives from "IN" to "OUT":
+coroutine. An example of a simple component summing the content of the packets received in "IN1" and "IN2":
 ```python
 from pyperator import components
 from pyperator.nodes import Component
 from pyperator.utils import InputPort, OutputPort, FilePort, Wildcards
-class PassThrough(Component):
+from pyperator.IP import InformationPacket
+from pyperator.DAG import  Multigraph
+import asyncio
+import random
+
+class Summer(Component):
     """
-    This is a component that resends the same packets it receives
+    This is a component that sums the value of the recieved packets
     """
 
     def __init__(self, name):
-        super(PassThrough, self).__init__(name)
-        self.inputs.add(InputPort("IN"))
+        super(Summer, self).__init__(name)
+        self.inputs.add(InputPort("IN1"))
+        self.inputs.add(InputPort("IN2"))
         self.outputs.add(OutputPort("OUT"))
 
     @log_schedule
     async def __call__(self):
         while True:
-                in_packets = await sefl.inputs.IN.receive()
-                #this is critical, a packet has to be copied before
-                #being sent again
-                copied = in_packets.copy()
-                await self.outputs.OUT.send_packet(copied)
+                in_packets_1 = await sefl.inputs.IN1.receive()
+                in_packets_2 = await sefl.inputs.IN1.receive()
+                #InformationPackets have the attribute "value" that contains the data
+                summed = InformatioPacket(in_packets_1.value() + in_packets_2.value())
+                await self.outputs.OUT.send_packet(summed)
 
 ```
 To receive packets from a channel named "IN", you should use `packet = await self.inputs.IN.receive_packet()`. The input and output PortRegister support two forms of indexing:
@@ -82,8 +88,25 @@ To receive packets from a channel named "IN", you should use `packet = await sel
 
 Likewise, sending packets is accomplished by issuing `await self.outputs.OUT.send(packet)`.
 
-Now, we define a second components that creates some interesting packets. This component will be a source component, it will not have any input ports:
+Now, we define a second components that creates some interesting packets. This component will be a source component, it will not have any input ports and will generate packtes consisting of random numbers:
 ```python
+class RandomSource(Component):
+        """
+        This component generates random packets
+        """
+        def __init__(self, name):
+                super(RandomSource, self).__init__(name)
+                self.name = name
+                self.outputs.add(OutputPort("OUT"))
+                
+        async def __call__(self):
+                while True:
+                        #generate IP containing random number
+                        a = InformationPacket(random.random())
+                        #send to the output port
+                        await self.outputs.OUT.send_packet(a)
+                        await asyncio.sleep(0)
+
 
 ```
 
@@ -105,7 +128,7 @@ class CustomComponent(Component):
         self.outputs.add(OutputPort("OUT"))
         self.inputs.add(OutputPort("IN"))
 ```
-
+this is what we have done before to define the `Summer` and the `RandomSource`components.
 * Adding ports to an existing compononent instance using the method `add` of the input and output PortRegister:
 
 ```python
@@ -120,8 +143,36 @@ Now, c1 will have two `InputPort`s, "IN" and "IN1" and two `OutputPorts`"OUT" an
 
 ### Create a graph
 
-Finally, several components can be tied together using a MultiGraph:
+Finally, several components can be tied together using a MultiGraph. In this case, we want to compute the sum of two random packets and print the result. To print the result we import the `ShowInputs` component from `pyperator.components` that will print the packet it receives from each port.
 ```python
+
+#Define a graph
+g = Multigraph()
+
+#Instantiate components
+
+s1 = RandomSource("s1")
+s2 = RandomSource("s2")
+adder = Summer("sum_them")
+printer = ShowInputs("show_it")
+#The printer needs an input port
+printer.inputs.add(InputPort("IN"))
+
+#Now we connect the components
+
+s1.outputs.OUT.connect(adder.inputs.IN1)
+s2.outputs.OUT.connect(adder.inputs.IN2)
+adder.outputs.OUT.connect(printer.inputs.IN)
+
+#Now we need to add them to a Graph instance to be able to run them.
+
+g.add_node(s1)
+g.add_node(s2)
+g.add_node(adder)
+g.add_node(printer)
+
+#We can vrun the computation by calling the graph
+g()
 
 ```
 
