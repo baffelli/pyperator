@@ -73,6 +73,44 @@ class PassThrough(Component):
         await self.close_downstream()
 
 ```
+To receive packets from a channel named "IN", you should use `packet = await self.inputs.IN.receive_packet()`. The input and output PortRegister support two forms of indexing:
+
+* Selecting ports using dict-style keys, i.e `self.inputs["IN"]`
+
+* Selecting them as attributes of the PortRegister, i.e `self.inputs.IN`
+
+Likewise, sending packets is accomplished by issuing `await self.outputs.OUT.send(packet)`.
+
+### Define Input/Output Ports
+
+There are two main ways to add ports to a component:
+
+* Adding them when defining the component, using its __init__ method:
+
+```python
+class CustomComponent(Component):
+    """
+    This is my useless component
+    """
+
+    def __init__(self, name):
+        super(CustomComponent, self).__init__(name)
+        self._gen = generator
+        self.outputs.add(OutputPort("OUT"))
+        self.inputs.add(OutputPort("IN"))
+```
+
+* Adding ports to an existing compononent instance using the method `add` of the input and output PortRegister:
+
+```python
+
+c1 = CustomComponent("test")
+#This component already has one input and output ports.
+c1.inputs.add.InputPort("IN1")
+c1.outputs.add.OutputPort("OUT1")
+
+```
+Now, c1 will have two `InputPort`s, "IN" and "IN1" and two `OutputPorts`"OUT" and "OUT1".
 
 ### 
 
