@@ -176,9 +176,34 @@ g()
 
 ```
 
+### Create a graph using magic methods
+Pyperator also supports a nicer syntax to express graphs and connect ports. The same graph of the previous example can be expressed
+in a more suggestive way using:
+
+```python
+
+#all nodes defined within this context manager will be automatically be added to the graph `g`
+with Multigraph() as g:
+        s1 = RandomSource("s1")
+        s2 = RandomSource("s2")
+        adder = Summer("sum_them")
+        printer = ShowInputs("show_it")
+        #The printer needs an input port
+        printer.inputs.add(InputPort("IN"))
+        #Connect 
+        s1.outputs.OUT >> adder.inputs.IN1
+        s2.outputs.OUT >> adder.inputs.IN2
+        adder.outputs.OUT >> printer.inputs.IN
+        
+g()
+        
+        
+```
+
 ### 
 
 ## Advanced example
+In this example we will see how pyperator supports shell commands and files, including wildcards and the generation of dynamic filenames. Many of these features are inspired by [scipipe](https://github.com/scipipe/scipipe/).
 ```python
         from pyperator.DAG import  Multigraph
         from pyperator.components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource, Filter, OneOffProcess
