@@ -12,14 +12,14 @@ _global_dag = None
 
 
 class Multigraph():
-    def __init__(self, log_path=None, name=None, log_level=logging.DEBUG):
-        # self._arcs = {}
+    def __init__(self, log_path=None, name='DAG', log_level=logging.DEBUG, workdir=None):
         self._nodes = set()
-        self._workdir = None
-        self._log_path = log_path or main.__file__.replace('.py', '.log')
+        self.name = name
+        self.workdir = workdir or './'
+        self._log_path = self.workdir + self.name + '.log' or log_path or main.__file__.replace('.py', '.log')
         self.name = name or _os.path.basename(main.__file__)
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
-        self._log.info("Created DAG")
+        self.log.info("Created DAG with workdir {}".format(self.workdir))
 
     @property
     def workdir(self):
@@ -29,19 +29,26 @@ class Multigraph():
     def workdir(self, dir):
         self._workdir = dir
 
+    @property
+    def log(self):
+        if self._log:
+            return self._log
+        else:
+           return _log.setup_custom_logger('buttavia')
+
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
-        self._log.debug("DAG {}: Connecting {} to {}".format(self.name, port1, port2))
+        self.log.debug("DAG {}: Connecting {} to {}".format(self.name, port1, port2))
         for port in [port1, port2]:
             try:
                 # Add log to every component
                 port.component.dag = self
-                port.component._log = self._log
+                port.component._log = self.log
                 if not self.hasnode(port.component):
                     self._nodes.add(port.component)
             except:
                 raise exceptions.PortNotExistingError('Port {} does not exist'.format(port))
-                self._log.ERROR("Port {} does not exist".format(port))
+                self.log.ERROR("Port {} does not exist".format(port))
         port1.connect(port2)
         # self._arcs.update(port1.connect_dict)
 
@@ -129,20 +136,20 @@ class Multigraph():
 
     def __call__(self):
         loop = asyncio.get_event_loop()
-        self._log.info('DAG {}: Starting DAG'.format(self.name))
+        self.log.info('DAG {}: Starting DAG'.format(self.name))
         # The producers are all the nodes that have no inputs
         producers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0])
-        self._log.info('DAG {}: Producers are {}'.format(self.name, producers))
+        self.log.info('DAG {}: Producers are {}'.format(self.name, producers))
         # Consumers are scheluded
         consumers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in > 0])
-        self._log.info('DAG {}: Consumers are {}'.format(self.name, consumers))
-        self._log.debug('DAG {}: Running Tasks'.format(self.name))
+        self.log.info('DAG {}: Consumers are {}'.format(self.name, consumers))
+        self.log.debug('DAG {}: Running Tasks'.format(self.name))
         try:
             loop.run_until_complete(producers)
             loop.run_until_complete(consumers)
         except Exception as e:
-            self._log.error(e)
-            self._log.info('DAG {}: Stopping DAG by cancelling scheduled tasks'.format(self.name))
+            self.log.error(e)
+            self.log.info('DAG {}: Stopping DAG by cancelling scheduled tasks'.format(self.name))
             if not loop.is_closed():
                 task = asyncio.Task.all_tasks()
                 future = asyncio.gather(*(task))
@@ -151,5 +158,5 @@ class Multigraph():
         finally:
             if loop.is_running():
                 loop.stop()
-                self._log.info('DAG {}: Stopping DAG'.format(self.name))
-            self._log.info('DAG {}: Stopped'.format(self.name))
+                self.log.info('DAG {}: Stopping DAG'.format(self.name))
+            self.log.info('DAG {}: Stopped'.format(self.name))
