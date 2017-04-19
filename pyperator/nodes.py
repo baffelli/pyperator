@@ -5,6 +5,7 @@ from . import IP
 from .utils import PortRegister, FilePort
 from . import DAG
 
+import itertools as _iter
 
 class AbstractComponent(metaclass=ABCMeta):
     """

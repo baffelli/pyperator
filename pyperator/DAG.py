@@ -1,23 +1,14 @@
 import asyncio
-import textwrap as _tw
-# from .gui import create_gui
-from . import exceptions
-from . import logging as _log
 import logging
-
-from . import utils as _ut
-
-
 import os as _os
-
-from . import nodes
+import textwrap as _tw
 
 import __main__ as main
 
+from . import exceptions
+from . import logging as _log
 
 _global_dag = None
-
-
 
 
 class Multigraph():
@@ -40,10 +31,10 @@ class Multigraph():
 
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
-        self._log.debug("DAG {}: Connecting {} to {}".format(self.name, port1,port2))
+        self._log.debug("DAG {}: Connecting {} to {}".format(self.name, port1, port2))
         for port in [port1, port2]:
             try:
-                #Add log to every component
+                # Add log to every component
                 port.component.dag = self
                 port.component._log = self._log
                 if not self.hasnode(port.component):
@@ -53,7 +44,6 @@ class Multigraph():
                 self._log.ERROR("Port {} does not exist".format(port))
         port1.connect(port2)
         # self._arcs.update(port1.connect_dict)
-
 
     def set_initial_packet(self, port, value):
         port.set_initial_packet(value)
@@ -66,7 +56,6 @@ class Multigraph():
         node._log = self._log
         self._nodes.add(node)
 
-
     def __radd__(self, other):
         self.add_node(other)
         return self
@@ -75,13 +64,11 @@ class Multigraph():
         self.add_node(other)
         return self
 
-
     def hasarc(self, node1, node2, outport, inport):
         return node1 in self._arcs and {node2: (outport, inport)} in self._arcs[node1]
 
     def hasnode(self, node):
         return node in self._nodes
-
 
     def disconnect(self, node1, node2):
         # TODO implement it
@@ -92,16 +79,9 @@ class Multigraph():
 
     def iterarcs(self):
         for source in self.iternodes():
-            for name,port in source.outputs.items():
+            for name, port in source.outputs.items():
                 for dest in port.iterends():
                     yield (port, dest)
-
-
-    # def iterarcs(self):
-    #     for source in self._arcs.keys():
-    #         for dest in source.iterends():
-    #             yield (source, dest)
-
 
     def adjacent(self, node):
         if node in self._arcs:
@@ -119,43 +99,42 @@ class Multigraph():
         global _global_dag
         _global_dag = self._old_dag
 
-
-
     def __repr__(self):
         arc_str = ("{} -> {}".format(conn.gv_string(), conn.gv_string()) for conn in self.iterarcs())
         out_str = "\n".join(arc_str)
         return out_str
 
     def dot(self):
-        #List of nodes
+        # List of nodes
         nodes_gen = (node.gv_node() for node in self.iternodes())
-        #List of arcs
+        # List of arcs
         arc_str = ("{} -> {}".format(k.gv_string(), v.gv_string()) for k, v in self.iterarcs())
-        #IIPs
-        iip_ports = ([(port, iip) for (port,iip) in node.inputs.iip_iter()] for node in self.iternodes())
-        print(list(iip_ports))
-        iip_nodes = [["node [shape=box] {name} [label={iip}]".format(name=id(port), iip=iip) for (port,iip) in node.inputs.iip_iter()] for node in self.iternodes()]
-        print(iip_nodes)
+        # IIPs as additional nodes
+        iip_nodes = "\n".join(
+            ["\n".join(["node [shape=box,style=rounded] {name} [label=\"{iip}\"]".format(name=id(iip), iip=iip) for (port, iip)
+                        in node.inputs.iip_iter()]) for node in self.iternodes()])
+        iip_arcs = "\n".join(
+            ["\n".join(["{source} -> {dest}".format(source=id(iip), dest=port.gv_string()) for (port, iip)
+                        in node.inputs.iip_iter()]) for node in self.iternodes()])
         graph_str = """
             digraph DAG{{
             graph[bgcolor=white, margin=0]
                 {nodes}
+                {iipnodes}
                 {edges}
+                {iiparcs}
             }}
-            """.format(nodes=";\n".join(nodes_gen), edges="\n".join(arc_str))
+            """.format(nodes=";\n".join(nodes_gen), edges="\n".join(arc_str), iipnodes=iip_nodes, iiparcs=iip_arcs)
         return _tw.dedent(graph_str)
-
-
-
 
     def __call__(self):
         loop = asyncio.get_event_loop()
         self._log.info('DAG {}: Starting DAG'.format(self.name))
-        #The producers are all the nodes that have no inputs
+        # The producers are all the nodes that have no inputs
         producers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0])
         self._log.info('DAG {}: Producers are {}'.format(self.name, producers))
-        #Consumers are scheluded
-        consumers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in >0])
+        # Consumers are scheluded
+        consumers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in > 0])
         self._log.info('DAG {}: Consumers are {}'.format(self.name, consumers))
         self._log.debug('DAG {}: Running Tasks'.format(self.name))
         try:
@@ -166,7 +145,7 @@ class Multigraph():
             self._log.info('DAG {}: Stopping DAG by cancelling scheduled tasks'.format(self.name))
             if not loop.is_closed():
                 task = asyncio.Task.all_tasks()
-                future =asyncio.gather(*(task))
+                future = asyncio.gather(*(task))
                 future.cancel()
                 # consumers.cancel()
         finally:
@@ -174,4 +153,3 @@ class Multigraph():
                 loop.stop()
                 self._log.info('DAG {}: Stopping DAG'.format(self.name))
             self._log.info('DAG {}: Stopped'.format(self.name))
-

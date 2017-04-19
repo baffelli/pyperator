@@ -269,6 +269,11 @@ class Port:
     def gv_string(self):
         return "{compid}:{portid}".format(compid=id(self.component), portid=id(self))
 
+    def gv_conn(self):
+        if self.other:
+            return "\n".join(["{self} -> {ohter}".format(self=self.gv_string(), ohter=other.gv_string()) for other in self.other])
+
+
 
 class FilePort(Port):
     """
