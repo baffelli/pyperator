@@ -6,6 +6,52 @@ from pyperator.exceptions import FormatterError, FileNotExistingError, CommandFa
 from pyperator.nodes import Component
 from pyperator.utils import Wildcards, log_schedule
 
+import collections.abc as _collabc
+
+import hashlib as _hl
+
+
+def unique_filename(outport, inputs, wildcards):
+    unique_if = ("".join([str(v.path) for p,v in inputs.items()])).encode('utf-8')
+    return str(_hl.md5(unique_if).hexdigest())
+
+
+
+class Inputs(_collabc.Mapping):
+    """
+    This class is used to represent the
+    node inputs so that each input
+    is accessible as an attribute
+    """
+
+    def __init__(self, received_packets):
+        self._inputs = received_packets
+
+    def __getattr__(self, item):
+        return self[item]
+
+    def __getitem__(self, item):
+        if item in self._inputs:
+            return self._inputs.get(item)
+        else:
+            pass
+
+    def __iter__(self):
+        return self._inputs.__iter__()
+
+    def __len__(self):
+        print(self._inputs)
+        return len(self._inputs)
+
+
+class Outputs(Inputs):
+
+    def __init__(self, received_packets):
+        super().__init__(received_packets)
+
+
+
+
 
 class FileOperator(Component):
     """
@@ -25,12 +71,14 @@ class FileOperator(Component):
         Formats the ouput port with a fixed
 
         """
-        self.output_formatters[port] = lambda inputs, outputs, wildcards: path
+        self.output_formatters[port] = lambda inputs, wildcards: path
 
     def DynamicFormatter(self, outport, pattern):
-        self.output_formatters[outport] = lambda inputs, outputs, wildcards: pattern.format(inputs=inputs,
-                                                                                            outputs=outputs,
+        self.output_formatters[outport] = lambda inputs, wildcards: pattern.format(inputs=inputs,
                                                                                             wildcards=wildcards)
+    def UniqueFormatter(self, outport):
+        formatter = lambda inputs, wildcards: unique_filename(outport,inputs, wildcards)
+        self.output_formatters[outport] = formatter
 
     def WildcardsExpression(self, inport, pattern):
         self.wildcard_expressions[inport] = Wildcards(pattern)
@@ -61,13 +109,17 @@ class FileOperator(Component):
         paths using the inputs and the formatting functions
         """
 
-        inputs = type('inputs', (object,), received_data)
+        inputs = Inputs(received_data)
         out_paths = {}
         wildcards = self.parse_wildcards(received_data)
         for out, out_port in self.outputs.items():
             try:
                 # First try formatting outpur
-                out_paths[out] = self.output_formatters[out](inputs, out_paths, wildcards)
+                try:
+                    out_paths[out] = self.dag.workdir + self.output_formatters[out](inputs, wildcards)
+                except KeyError:
+                    out_paths[out] = self.UniqueFormatter(out)(inputs, wildcards)
+                    self._log.info("Component {}: Output port {} has no output formatter specified, will form an unique ID based on inputs".format(self.name, out_port, out_paths[out]))
                 self._log.debug(
                     "Component {}: Output port {} will send file '{}'".format(self.name, out_port, out_paths[out]))
             except NameError as e:
@@ -75,7 +127,7 @@ class FileOperator(Component):
                 self._log.error(ex_text)
                 raise FormatterError(ex_text)
             except Exception as e:
-                print(e)
+                raise e
         return out_paths, wildcards
 
     def generate_packets(self, out_paths):
@@ -98,7 +150,6 @@ class FileOperator(Component):
         while True:
             # Wait for all upstram to be completed
             received_packets = await self.receive_packets()
-            print(received_packets)
             # Generate output paths
             out_paths, wildcards = self.generate_output_paths(received_packets)
             out_packets = self.generate_packets(out_paths)
@@ -113,10 +164,10 @@ class FileOperator(Component):
                                                                                                              packet
                                                                                                              in
                                                                                                              missing.values()]))
-                inputs_obj = type('a', (object,), received_packets)
-                ouputs_obj = type('a', (object,), out_packets)
+                inputs_obj = Inputs(received_packets)
+                outputs_obj = Outputs(out_packets)
                 # Produce the outputs
-                out_packets = self.produce_outputs(inputs_obj, ouputs_obj, wildcards)
+                out_packets = self.produce_outputs(inputs_obj, outputs_obj, wildcards)
                 # Check if the output files exist
                 missing_after = self.enumerate_missing(out_packets)
                 if missing_after:
@@ -147,7 +198,7 @@ class Shell(FileOperator):
         self.wildcard_expressions = {}
 
     def produce_outputs(self, input_packets, output_packets, wildcards):
-        formatted_cmd = self.cmd.format(inputs=input_packets, outputs=input_packets, wildcards=wildcards)
+        formatted_cmd = self.cmd.format(inputs=input_packets, outputs=output_packets, wildcards=wildcards)
         self._log.debug("Executing command {}".format(formatted_cmd))
         # Define stdout and stderr pipes
         stdout = _sub.PIPE
