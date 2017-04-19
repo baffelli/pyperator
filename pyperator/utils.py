@@ -126,12 +126,13 @@ class Port:
         self.queue = asyncio.Queue()
         self.packet_factory = InformationPacket
         self._open = True
+        self._iip = False
 
     def set_initial_packet(self, value):
-        self._component.log.debug("Set initial message for {} at port {}".format(self.name, self.component))
+        self.component._log.debug("Set initial information packet for {} at port {}".format(self.name, self.component))
         packet = self.packet_factory(value, owner=self.component)
-        packet.owner = self.component
-        self.queue.put_nowait(packet)
+        # self.queue.put_nowait(packet)
+        self._iip = packet
 
     def kickstart(self):
         packet = self.packet_factory(None)
@@ -205,7 +206,10 @@ class Port:
     async def receive_packet(self):
         if self.is_connected:
             self.component._log.debug("Component {}: receiving at {}".format(self.component, self.name))
-            packet = await self.queue.get()
+            if not self._iip:
+                packet = await self.queue.get()
+            else:
+                packet = self._iip
             logging.getLogger('root').debug(
                 "Component {}: received {} from {}".format(self.component, packet, self.name))
             self.queue.task_done()
