@@ -143,32 +143,39 @@ class Bracket(InformationPacket):
     """
 
     def __init__(self, owner=None):
-        super(Bracket, self).__init__(value=[], owner=owner)
+        super(Bracket, self).__init__(value=None, owner=owner)
 
-    def __getitem__(self, item):
-        return self.value.__getitem__(item)
-
-    def __add__(self, other):
-        self._value.__add__(other)
-
-    def append(self, other):
-        other_packet = InformationPacket(other, owner=self)
-        self._value.append(other_packet)
-
-    def append_packet(self, packet):
-        self._value.append(packet)
-
-    def __len__(self):
-        return self.value.__len__()
-
-    def __str__(self):
-        st = "{} owned by {}, length {}, value {}".format(self.__repr__(), self.owner, self.__len__(), self._value)
-        return st
-
-    def __iter__(self):
-        return self.value.__iter__()
-
-
+    # def __getitem__(self, item):
+    #     return self.value.__getitem__(item)
+    #
+    # def __add__(self, other):
+    #     self._value.__add__(other)
+    #
+    # def append(self, other):
+    #     other_packet = InformationPacket(other, owner=self)
+    #     self._value.append(other_packet)
+    #
+    # def append_packet(self, packet):
+    #     self._value.append(packet)
+    #
+    # def __len__(self):
+    #     return self.value.__len__()
+    #
+    # def __str__(self):
+    #     st = "{} owned by {}, length {}, value {}".format(self.__repr__(), self.owner, self.__len__(), self._value)
+    #     return st
+    #
+    # def __iter__(self):
+    #     return self.value.__iter__()
 
 
+class OpenBracket(InformationPacket):
+
+    def __init__(self, owner=None):
+        super(OpenBracket, self).__init__(value=None, owner=owner)
+
+
+class CloseBracket(InformationPacket):
+    def __init__(self, owner=None):
+        super(CloseBracket, self).__init__(value=None, owner=owner)
 

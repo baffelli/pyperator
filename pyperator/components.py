@@ -74,9 +74,11 @@ class Product(Component):
                 all_packets[port].append(packet)
         async with self.outputs.OUT:
             for it, p in enumerate(_iter.product(*all_packets.values())):
-                out_packet = IP.Bracket(owner=self)
-                [out_packet.append_packet(p1.copy()) for p1 in p]
-                await self.outputs.OUT.send_packet(out_packet)
+                #Create substream
+                substream = [IP.OpenBracket()] + [p1.copy() for p1 in p] + [IP.CloseBracket()]
+                #Send packets in substream
+                for p1 in substream:
+                    await self.outputs.OUT.send_packet(p1)
                 await asyncio.sleep(0)
 
 
@@ -142,14 +144,20 @@ class Split(Component):
 
     @log_schedule
     async def __call__(self):
-        while True:
-            data = await self.inputs.IN.receive_packet()
-            self._log.debug(
-                "Component {}: Splitting '{}'".format(self.name, data))
-            for index_port, ((data_item), (output_port_name, output_port)) in enumerate(
-                    zip(data, self.outputs.items())):
-                await output_port.send_packet(data_item.copy())
-            await asyncio.sleep(0)
+        #Iterate over input stream
+        async for packet in self.inputs.IN:
+            if isinstance(packet, IP.OpenBracket):
+                packet.drop()
+                data = []
+            elif isinstance(packet, IP.CloseBracket):
+                packet.drop()
+                self._log.debug(
+                    "Component {}: Splitting '{}'".format(self.name, data))
+                for (output_port_name, output_port), out_packet in zip(self.outputs.items(), data):
+                    await output_port.send_packet(out_packet.copy())
+            else:
+                data.append(packet)
+                await asyncio.sleep(0)
 
 
 class IterSource(Component):
@@ -166,12 +174,13 @@ class IterSource(Component):
 
     @log_schedule
     async def __call__(self):
-        # print(list(_iter.product(*self.generators)))
         for items in self.function(*self.generators):
-            packet = Bracket(owner=self)
+            open = IP.OpenBracket()
+            await self.outputs.OUT.send_packet(open)
             for item in items:
-                packet.append(item)
-            await self.outputs.OUT.send_packet(packet)
+                packet = IP.InformationPacket(item)
+                await self.outputs.OUT.send_packet(packet)
+            await self.outputs.OUT.send_packet(IP.CloseBracket())
             await asyncio.sleep(0)
         await self.close_downstream()
 
