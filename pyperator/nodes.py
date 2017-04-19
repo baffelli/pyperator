@@ -49,7 +49,7 @@ class Component(AbstractComponent):
     def port_table(self):
 
         def port_element(**kwargs):
-            return "<TD PORT=\"{portname}\" BGCOLOR=\"{portcolor}\" ALIGN=\"CENTER\">{portname}</TD>".format(
+            return "<TD PORT=\"{id}\" BGCOLOR=\"{portcolor}\" ALIGN=\"CENTER\">{portname}</TD>".format(
                 **kwargs)
 
         def colspan(nports, ntotal):
@@ -60,7 +60,7 @@ class Component(AbstractComponent):
 
         def format_ports(ports, total_ports):
             return "".join(
-                port_element(portname=port.name, portcolor=map_type(port), colspan=colspan(len(ports), len(total_ports))) for port in ports)
+                port_element(id=id(port), portname=port.name, portcolor=map_type(port), colspan=colspan(len(ports), len(total_ports))) for port in ports)
 
 
 
@@ -85,7 +85,7 @@ class Component(AbstractComponent):
 
     def gv_node(self):
         st = """node[shape=box]
-            {name} [label={lab}]""".format(c=self.color, name=self.name, lab=self.port_table())
+            {name} [label={lab}]""".format(c=self.color, name=id(self), lab=self.port_table())
         return st
 
     async def receive(self):

@@ -9,7 +9,7 @@ from pyperator.exceptions import PortNotExistingError, PortDisconnectedError, Ou
 from . import IP
 from .IP import InformationPacket, EndOfStream, FilePacket
 
-conn_template = "{component.name}:{name}"
+
 
 import logging
 
@@ -267,7 +267,7 @@ class Port:
         return formatted
 
     def gv_string(self):
-        return conn_template.format(**self.__dict__)
+        return "{compid}:{portid}".format(compid=id(self.component), portid=id(self))
 
 
 class FilePort(Port):
@@ -353,6 +353,17 @@ class PortRegister:
 
     def keys(self):
         return self.ports.keys()
+
+    def iip_iter(self):
+        """
+        Returns a generator of tuples
+        (port, IIP) for all the ports
+        that have an Initial Information packet set.
+        :return:
+        """
+        for (port_name, port) in self.items():
+            if port._iip:
+                yield (port, port._iip.value)
 
     async def receive_packets(self):
         futures = {}
