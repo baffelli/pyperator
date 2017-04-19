@@ -208,11 +208,11 @@ class Port:
             self.component._log.debug("Component {}: receiving at {}".format(self.component, self.name))
             if not self._iip:
                 packet = await self.queue.get()
+                self.queue.task_done()
             else:
                 packet = self._iip
             logging.getLogger('root').debug(
                 "Component {}: received {} from {}".format(self.component, packet, self.name))
-            self.queue.task_done()
             if packet.is_eos and self.queue.empty():
                 self.component._log.info(
                     "Component {}: stopping because {} was received".format(self.component, packet))

@@ -36,15 +36,16 @@ class GlobSource(Component):
     when the component is initialized
     """
 
-    def __init__(self, name, pattern):
+    def __init__(self, name):
         super(GlobSource, self).__init__(name)
-        self.pattern = pattern
         self.outputs.add(FilePort('OUT'))
+        self.inputs.add(InputPort('pattern'))
 
     @log_schedule
     async def __call__(self):
-        files = _glob.glob(self.pattern)
-        start_message = "Component {}: using glob pattern {} will emit {} files: {}".format(self.name, self.pattern, len(files), files)
+        pattern = await self.inputs.pattern.receive()
+        files = _glob.glob(pattern)
+        start_message = "Component {}: using glob pattern {} will emit {} files: {}".format(self.name, pattern, len(files), files)
         self._log.info(start_message)
         for file in files:
             p = IP.FilePacket(file, owner=self)
@@ -181,7 +182,7 @@ class IterSource(Component):
                 packet = IP.InformationPacket(item)
                 await self.outputs.OUT.send_packet(packet)
             await self.outputs.OUT.send_packet(IP.CloseBracket())
-            await asyncio.sleep(0)
+        await asyncio.sleep(0)
         await self.close_downstream()
 
 
