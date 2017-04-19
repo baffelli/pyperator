@@ -193,9 +193,10 @@ class Port:
             else:
                 raise PortClosedError()
         else:
-            ex_str = '{} is not connected'.format(self.name)
-            # logging.getLogger('root').error(ex_str)
-            raise PortDisconnectedError()
+            ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
+            packet.drop()
+            logging.getLogger('root').error(ex_str)
+            # raise PortDisconnectedError()
 
     async def send(self, data):
         if self.is_connected:
