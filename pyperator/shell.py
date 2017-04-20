@@ -16,6 +16,13 @@ def unique_filename(outport, inputs, wildcards):
     return str(_hl.md5(unique_if).hexdigest())
 
 
+def make_call(cmd, stderr, stdout):
+    proc = _sub.Popen(cmd, shell=True, stdout=stdout, stderr=stderr)
+    return proc
+
+def make_async_call(cmd,stderr, stdout):
+    return asyncio.create_subprocess_shell(cmd,stdout=stdout, stderr=stderr)
+
 
 class Inputs(_collabc.Mapping):
     """
@@ -167,7 +174,7 @@ class FileOperator(Component):
                 inputs_obj = Inputs(received_packets)
                 outputs_obj = Outputs(out_packets)
                 # Produce the outputs
-                out_packets = self.produce_outputs(inputs_obj, outputs_obj, wildcards)
+                out_packets = await self.produce_outputs(inputs_obj, outputs_obj, wildcards)
                 # Check if the output files exist
                 missing_after = self.enumerate_missing(out_packets)
                 if missing_after:
@@ -197,17 +204,16 @@ class Shell(FileOperator):
         # Input ports may have wildcard expressions attached
         self.wildcard_expressions = {}
 
-    def produce_outputs(self, input_packets, output_packets, wildcards):
+    async def produce_outputs(self, input_packets, output_packets, wildcards):
         formatted_cmd = self.cmd.format(inputs=input_packets, outputs=output_packets, wildcards=wildcards)
         self._log.debug("Executing command {}".format(formatted_cmd))
         # Define stdout and stderr pipes
-        stdout = _sub.PIPE
-        stderr = _sub.PIPE
-        proc = _sub.Popen(formatted_cmd, shell=True, stdout=stdout, stderr=stderr)
-        stdoud, stderr = proc.communicate()
+        stdout = asyncio.subprocess.PIPE
+        stderr = asyncio.subprocess.PIPE
+        proc = await make_async_call(formatted_cmd, stderr, stdout)
+            # stdoud, stderr = proc.communicate()
         if proc.returncode != 0:
             fail_str = "running command '{}' failed with output: \n {}".format(formatted_cmd, stderr.strip())
-            ext_str = "Component {}: ".format(self.name, ) + fail_str
             e = CommandFailedError(self, fail_str)
             self._log.error(e)
             raise e
