@@ -309,14 +309,15 @@ class InputPort(Port):
             super(InputPort, self).connect(other_port)
             self._n_ohter += 1
         else:
-            # ext_text = "A {} port only supports one incoming connection".format(type(self))
-            # self.component._log.error(ext_text)
             e = MultipleConnectionError(self)
             self.component._log.error(e)
             raise e
 
     async def send_packet(self, packet):
         raise InputOnlyError(self)
+
+
+
 
 
 class PortRegister:
