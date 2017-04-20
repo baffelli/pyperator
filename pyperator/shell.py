@@ -64,7 +64,11 @@ class FileOperator(Component):
     """
     This component operates on files, it supports
     wilcard expressions and output file formatters based on
-    input files, i.e extracting part of the paths to generate output paths
+    input files, i.e extracting part of the paths to generate output paths.
+    To subclass it, you need to implement the function
+    `produce_outputs` that generates the output packets, the component
+    will automatically check wether the files that it produces exists, in order
+    to avoid rerunning the command again.
     """
     def __init__(self, name):
         super(FileOperator, self).__init__(name)
@@ -211,7 +215,7 @@ class Shell(FileOperator):
         stdout = asyncio.subprocess.PIPE
         stderr = asyncio.subprocess.PIPE
         proc = await make_async_call(formatted_cmd, stderr, stdout)
-            # stdoud, stderr = proc.communicate()
+        stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
             fail_str = "running command '{}' failed with output: \n {}".format(formatted_cmd, stderr.strip())
             e = CommandFailedError(self, fail_str)
