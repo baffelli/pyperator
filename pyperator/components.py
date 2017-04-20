@@ -57,11 +57,14 @@ class Product(Component):
     """
     This component generates the
     cartesian product of the packets incoming from each ports and
-    then sends them to the output port `OUT` as bracket IPs
+    then sends them to the output port `OUT` as bracket IPs.
+    Alternatively, by providing a function `fun` to the constructor, another
+    combinatorial function can be used to generate the packets.
     """
 
-    def __init__(self, name):
+    def __init__(self, name, fun=lambda packets:_iter.product(*packets)):
         super().__init__(name)
+        self._fun = fun
 
     @log_schedule
     async def __call__(self):
@@ -71,7 +74,7 @@ class Product(Component):
             for port, packet in packet_dict.items():
                 all_packets[port].append(packet)
         async with self.outputs.OUT:
-            for it, p in enumerate(_iter.product(*all_packets.values())):
+            for it, p in enumerate(self._fun(all_packets.values())):
                 #Create substream
                 substream = [IP.OpenBracket()] + [p1.copy() for p1 in p] + [IP.CloseBracket()]
                 #Send packets in substream
@@ -164,7 +167,7 @@ class IterSource(Component):
     from a itertool function such as product
     """
 
-    def __init__(self, name, *generators, function=_iter.product):
+    def __init__(self, name, *generators, function=_iter.combinations):
         super(IterSource, self).__init__(name)
         self.generators = generators
         self.outputs.add(OutputPort('OUT'))
