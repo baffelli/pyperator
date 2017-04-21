@@ -17,7 +17,7 @@ class InformationPacket(object):
         del self
 
     def __str__(self):
-        return "{} owned by {}, path {}, value {}".format(self.__repr__(), self.owner, self.path, self.value)
+        return "{} owned by {}, value {}".format(self.__repr__(), self.owner, self.value)
 
     @property
     def value(self):
@@ -42,24 +42,6 @@ class InformationPacket(object):
     def is_eos(self):
         return False
 
-    @property
-    def exists(self):
-        return True
-
-    @property
-    def path(self):
-        return self.value
-
-    @property
-    def basename(self):
-        if self.path:
-            return _os.path.basename(self.path)
-        else:
-            return None
-
-    @property
-    def is_file(self):
-        return False
 
     def open(self):
         pass
