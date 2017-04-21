@@ -180,7 +180,7 @@ class FileOperator(Component):
             # Check for missing packet
             missing = self.enumerate_missing(out_packets)
             if missing:
-                self._log.debug(
+                self._log.info(
                     "Component {}: Output files '{}' do not exist not exist, command will be run".format(self.name,
                                                                                                          [
                                                                                                              packet
@@ -200,7 +200,7 @@ class FileOperator(Component):
                     self._log.error(missing_err)
                     raise FileNotExistingError(missing_err)
             else:
-                self._log.info(
+                self._log.debug(
                     "Component {}: All output files exist, command will not be run".format(self.name))
                 new_out = out_packets
             await asyncio.wait(self.send_packets(new_out.as_dict()))
@@ -223,7 +223,7 @@ class Shell(FileOperator):
 
     async def produce_outputs(self, input_packets, output_packets, wildcards):
         formatted_cmd = self.cmd.format(inputs=input_packets, outputs=output_packets, wildcards=wildcards)
-        self._log.debug("Executing command {}".format(formatted_cmd))
+        self._log.info("Executing command {}".format(formatted_cmd))
         # Define stdout and stderr pipes
         stdout = asyncio.subprocess.PIPE
         stderr = asyncio.subprocess.PIPE
