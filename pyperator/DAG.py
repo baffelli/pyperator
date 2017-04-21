@@ -8,7 +8,14 @@ import __main__ as main
 from . import exceptions
 from . import logging as _log
 
+
+import traceback
+
+import concurrent.futures
+
+
 _global_dag = None
+
 
 
 class Multigraph():
@@ -23,7 +30,10 @@ class Multigraph():
 
     @property
     def workdir(self):
-        return self._workdir
+        if self._workdir:
+            return self._workdir
+        else:
+            return ""
 
     @workdir.setter
     def workdir(self, dir):
@@ -148,7 +158,7 @@ class Multigraph():
             loop.run_until_complete(producers)
             loop.run_until_complete(consumers)
         except Exception as e:
-            self.log.error(e)
+            self.log.exception(e)
             self.log.info('DAG {}: Stopping DAG by cancelling scheduled tasks'.format(self.name))
             if not loop.is_closed():
                 task = asyncio.Task.all_tasks()
