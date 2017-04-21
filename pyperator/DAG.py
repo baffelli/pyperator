@@ -157,6 +157,8 @@ class Multigraph():
         try:
             loop.run_until_complete(producers)
             loop.run_until_complete(consumers)
+        except StopAsyncIteration as e:
+            self.log.info('DAG {}: Received EOS'.format(self.name))
         except Exception as e:
             self.log.exception(e)
             self.log.info('DAG {}: Stopping DAG by cancelling scheduled tasks'.format(self.name))
