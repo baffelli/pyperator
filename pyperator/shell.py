@@ -14,6 +14,8 @@ import itertools as _iter
 
 import os as _os
 
+import pathlib as _path
+
 def unique_filename(outport, inputs, wildcards):
     unique_if = ("".join([str(v.path) for p,v in inputs.items()])).encode('utf-8')
     return str(_hl.md5(unique_if).hexdigest())
@@ -27,38 +29,40 @@ def make_async_call(cmd,stderr, stdout):
     return asyncio.create_subprocess_shell(cmd,stdout=stdout, stderr=stderr)
 
 
-class Inputs(_collabc.Mapping):
+class PacketRegister(_collabc.Mapping):
     """
-    This class is used to represent the
-    node inputs so that each input
-    is accessible as an attribute
+    This class is used to represent a collection of
+    packets received from a number of ports, so that
+    in a shell command, we can use {inputs.port.packet_attribute} to
+    access a certain attribute belonging to a packet received from port `port`
     """
 
-    def __init__(self, received_packets):
-        self._inputs = received_packets
-
-    def __getattr__(self, item):
-        return self[item]
+    def __init__(self, packets):
+        self._packets = {k:v for k,v in packets.items()}
 
     def __getitem__(self, item):
-        if item in self._inputs:
-            return self._inputs.get(item)
+        if item in self._packets:
+            return self._packets[item].value
         else:
             pass
 
+    def get_packet(self, item):
+        return self._packets.get(item)
+
+    def as_dict(self):
+        return self._packets
+
+    def __getattr__(self, item):
+        return self.__getitem__(item)
+
     def __iter__(self):
-        return self._inputs.__iter__()
+        return self._packets.__iter__()
 
     def __len__(self):
-        print(self._inputs)
-        return len(self._inputs)
+        return len(self._packets)
 
-
-class Outputs(Inputs):
-
-    def __init__(self, received_packets):
-        super().__init__(received_packets)
-
+    def __str__(self):
+        return self._packets.__str__()
 
 
 
@@ -123,7 +127,7 @@ class FileOperator(Component):
         paths using the inputs and the formatting functions
         """
 
-        inputs = Inputs(received_data)
+        inputs = PacketRegister(received_data)
         out_paths = {}
         wildcards = self.parse_wildcards(received_data)
         for out, out_port in self.outputs.items():
@@ -147,17 +151,17 @@ class FileOperator(Component):
     def generate_packets(self, out_paths):
         out_packets = {}
         for port, path in out_paths.items():
-            out_packets[port] = IP.FilePacket(path)
-        return out_packets
+            out_packets[port] = IP.InformationPacket(_path.Path(path),owner=None)
+        return PacketRegister(out_packets)
 
-    def enumerate_newer(self, input_packets, output_packet):
-        newer = {}
-        for (out_port, out_packet), (inport, inpacket) in _iter.combinations(input_packets.items(), output_packet.items()):
-            if _os.path.getmtime(out_packet.path) < _os.path.getmtime(inpacket.path):
+    # def enumerate_newer(self, input_packets, output_packet):
+    #     newer = {}
+    #     for (out_port, out_packet), (inport, inpacket) in _iter.combinations(input_packets.items(), output_packet.items()):
+    #         if _os.path.getmtime(out_packet.path) < _os.path.getmtime(inpacket.path):
 
 
     def enumerate_missing(self, out_packets):
-        return {port: packet for port, packet in out_packets.items() if not packet.exists}
+        return {port: packet for port, packet in out_packets.items() if not packet.exists()}
 
 
     def produce_outputs(self, input_packets, output_packets, wildcards):
@@ -179,17 +183,16 @@ class FileOperator(Component):
                 self._log.debug(
                     "Component {}: Output files '{}' do not exist not exist, command will be run".format(self.name,
                                                                                                          [
-                                                                                                             packet.path
+                                                                                                             packet
                                                                                                              for
                                                                                                              packet
                                                                                                              in
                                                                                                              missing.values()]))
-                inputs_obj = Inputs(received_packets)
-                outputs_obj = Outputs(out_packets)
+                inputs_obj = PacketRegister(received_packets)
                 # Produce the outputs
-                out_packets = await self.produce_outputs(inputs_obj, outputs_obj, wildcards)
+                new_out = await self.produce_outputs(inputs_obj, out_packets, wildcards)
                 # Check if the output files exist
-                missing_after = self.enumerate_missing(out_packets)
+                missing_after = self.enumerate_missing(new_out)
                 if missing_after:
                     missing_err = "Component {name}: Following files are missing {}, check the command".format(
                         self.name, [packet.path for packet in missing_after.values()])
@@ -199,7 +202,8 @@ class FileOperator(Component):
             else:
                 self._log.info(
                     "Component {}: All output files exist, command will not be run".format(self.name))
-            await asyncio.wait(self.send_packets(out_packets))
+                new_out = out_packets
+            await asyncio.wait(self.send_packets(new_out.as_dict()))
             await asyncio.sleep(0)
 
 
