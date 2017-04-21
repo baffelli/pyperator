@@ -1,11 +1,5 @@
 # Based on https://github.com/LumaPictures/pflow/blob/master/pflow/packet.py
 
-import os as _os
-
-import shutil
-
-import tempfile
-
 
 
 class InformationPacket(object):
@@ -17,7 +11,7 @@ class InformationPacket(object):
         del self
 
     def __str__(self):
-        return "{} owned by {}, value {}".format(self.__repr__(), self.owner, self.value)
+        return "{} owned by {}, payload {}, payload type {}".format(self.__repr__(), self.owner, self.value, type(self.value))
 
     @property
     def value(self):
