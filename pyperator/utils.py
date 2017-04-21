@@ -207,9 +207,9 @@ class Port:
             logging.getLogger('root').debug(
                 "Component {}: received {} from {}".format(self.component, packet, self.name))
             if packet.is_eos and self.queue.empty():
-                self.component._log.info(
-                    "Component {}: stopping because {} was received".format(self.component, packet))
-                raise StopAsyncIteration('Received EOS')
+                stop_message = "Component {}: stopping because {} was received".format(self.component, packet)
+                self.component._log.info(stop_message)
+                raise StopAsyncIteration(stop_message)
             else:
                 return packet
         else:
