@@ -68,59 +68,6 @@ class InformationPacket(object):
         return InformationPacket(self.value, owner=None)
 
 
-class FilePacket(InformationPacket):
-    def __init__(self, path, mode='r', owner=None):
-        super(FilePacket, self).__init__(None, owner=owner)
-        self._path = path
-        self.mode = mode
-        self.tempfile = None
-
-    def open(self, mode='r'):
-        if self.exists:
-            return open(self.path, mode)
-        else:
-            return self.open_temp()
-
-    def open_temp(self):
-        return self.tempfile.TemporaryFile()
-
-    def finalize(self):
-        shutil.copy(self.tempfile, self.path)
-
-    def __str__(self):
-        return "{} owned by {}, path {}, existing {}".format(self.__repr__(), self.owner, self.path, self.exists)
-
-    @property
-    def value(self):
-        with self.open('r') as infile:
-            return infile.readlines()
-
-    @property
-    def path(self):
-        return self._path
-
-    @property
-    def dirname(self):
-        return _os.path.dirname(self.path)
-
-    @property
-    def nameroot(self):
-        return self.basename[:self.basename.index('.')]
-
-    @property
-    def exists(self):
-        return _os.path.isfile(self.path)
-
-    @property
-    def is_file(self):
-        return True
-
-    def copy(self):
-        return FilePacket(self.path, owner=None, mode=self.mode)
-
-    @property
-    def modification_time(self):
-        return _os.path.getatime(self.path)
 
 class EndOfStream(InformationPacket):
     """
