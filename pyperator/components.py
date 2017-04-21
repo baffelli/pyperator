@@ -6,6 +6,7 @@ from . import IP
 from .nodes import Component
 from .utils import InputPort, OutputPort, log_schedule, FilePort
 
+import pathlib as _path
 
 class GeneratorSource(Component):
     """
@@ -28,7 +29,7 @@ class GeneratorSource(Component):
 
 class GlobSource(Component):
     """
-    This is a component that emits FilePackets
+    This is a component that emits Packets
     according to a glob pattern specified
     when the component is initialized
     """
@@ -45,7 +46,7 @@ class GlobSource(Component):
         start_message = "Component {}: using glob pattern {} will emit {} files: {}".format(self.name, pattern, len(files), files)
         self._log.info(start_message)
         for file in files:
-            p = IP.FilePacket(file, owner=self)
+            p = IP.InformationPacket(_path.Path(file), owner=self)
             await self.outputs.OUT.send_packet(p)
             await asyncio.sleep(0)
         stop_message = "Component {}: exahusted list of files".format(self.name)
@@ -85,7 +86,7 @@ class Product(Component):
 
 class FileListSource(Component):
     """
-    This is a component that emits FilePackets
+    This is a component that emits InformationPackets
     from a list of files
     """
 
@@ -97,7 +98,7 @@ class FileListSource(Component):
     @log_schedule
     async def __call__(self):
         for file in self.files:
-            p = IP.FilePacket(file, owner=self)
+            p = IP.InformationPacket(file, owner=self)
             await self.outputs.OUT.send_packet(p)
             await asyncio.sleep(0)
         await self.close_downstream()
@@ -105,7 +106,7 @@ class FileListSource(Component):
 
 class ReplacePath(Component):
     """
-    This is a component that emits FilePackets
+    This is a component that emits InformationPackets
     with a path obtained by replacing the input path
     """
 
@@ -119,13 +120,13 @@ class ReplacePath(Component):
     async def __call__(self):
         while True:
             p = await self.inputs.IN.receive_packet()
-            p1 = IP.FilePacket(p.path.replace(*self.pattern), owner=self)
+            p1 = IP.InformationPacket(p.path.replace(*self.pattern), owner=self)
             p.drop()
             await self.outputs.OUT.send_packet(p1)
             await asyncio.sleep(0)
 
 
-class PathToFilePacket(Component):
+class PathToInformationPacket(Component):
     """
     This component converts a path to a file packet
     """
