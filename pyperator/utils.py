@@ -192,9 +192,8 @@ class Port:
             # raise PortDisconnectedError()
 
     async def send(self, data):
-        if self.is_connected:
-            packet = InformationPacket(data, owner=self.component)
-            await self.send_packet(packet)
+        packet = InformationPacket(data, owner=self.component)
+        await self.send_packet(packet)
 
 
     async def receive_packet(self):
