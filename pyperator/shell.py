@@ -10,6 +10,9 @@ import collections.abc as _collabc
 
 import hashlib as _hl
 
+import itertools as _iter
+
+import os as _os
 
 def unique_filename(outport, inputs, wildcards):
     unique_if = ("".join([str(v.path) for p,v in inputs.items()])).encode('utf-8')
@@ -146,6 +149,12 @@ class FileOperator(Component):
         for port, path in out_paths.items():
             out_packets[port] = IP.FilePacket(path)
         return out_packets
+
+    def enumerate_newer(self, input_packets, output_packet):
+        newer = {}
+        for (out_port, out_packet), (inport, inpacket) in _iter.combinations(input_packets.items(), output_packet.items()):
+            if _os.path.getmtime(out_packet.path) < _os.path.getmtime(inpacket.path):
+
 
     def enumerate_missing(self, out_packets):
         return {port: packet for port, packet in out_packets.items() if not packet.exists}
