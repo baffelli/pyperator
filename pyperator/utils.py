@@ -124,18 +124,16 @@ class Port:
         self.component = component
         self.other = []
         self.queue = asyncio.Queue()
-        self.packet_factory = InformationPacket
         self._open = True
         self._iip = False
 
     def set_initial_packet(self, value):
         self.component._log.debug("Set initial information packet for {} at port {}".format(self.name, self.component))
-        packet = self.packet_factory(value, owner=self.component)
+        packet = InformationPacket(value, owner=self.component)
         # self.queue.put_nowait(packet)
         self._iip = packet
 
     def kickstart(self):
-        packet = self.packet_factory(None)
         self.queue.put_nowait(packet)
         self.component._log.debug('Component {}: Kickstarting port {}'.format(self.component, self.name))
 
@@ -195,7 +193,7 @@ class Port:
 
     async def send(self, data):
         if self.is_connected:
-            packet = self.packet_factory(data, owner=self.component)
+            packet = InformationPacket(data, owner=self.component)
             await self.send_packet(packet)
 
 
@@ -280,7 +278,6 @@ class FilePort(Port):
 
     def __init__(self, name, component=None):
         super(FilePort, self).__init__(name, component=component)
-        self.packet_factory = InformationPacket
 
 
 class OutputPort(Port):
