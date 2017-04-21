@@ -1,6 +1,7 @@
 from unittest import TestCase
 
 import pyperator.exceptions
+import pyperator.shell
 from pyperator.DAG import Multigraph
 from pyperator.components import GeneratorSource, ShowInputs, BroadcastApplyFunction, ConstantSource, Filter, OneOffProcess
 from pyperator import components
@@ -42,6 +43,10 @@ class TestPacket(TestCase):
         b = IP.FilePacket(unique_file)
         print(str(b))
 
+    def testCopy(self):
+        a = IP.FilePacket('a')
+        b = a.copy()
+        print(a,b)
 
 class TestWildcards(TestCase):
 
@@ -92,7 +97,7 @@ class TestMultigraph(TestCase):
 
     def testNonExistingPort(self):
         c1 = Component('c1')
-        with self.assertRaises(pyperator.exceptions.PortNotExistingException):
+        with self.assertRaises(pyperator.exceptions.PortNotExistingError):
             c1.outputs.c
 
     def testPortUniqueness(self):
@@ -284,7 +289,7 @@ class TestMultigraph(TestCase):
     def testFixedFormatter(self):
         #generate uniquefilename
         unique_file = os.path.dirname(__file__) + '/' + str(uuid.uuid4())
-        toucher = components.Shell('shell', "touch {outputs.f1}")
+        toucher = pyperator.shell.Shell('shell', "touch {outputs.f1}")
         toucher.outputs.add(FilePort('f1'))
         toucher.FixedFormatter('f1', unique_file)
         printer = ShowInputs('show path')
@@ -297,7 +302,7 @@ class TestMultigraph(TestCase):
     def testPatternFormatter(self):
         #Source
         source1 = GeneratorSource('s1', (i for i in range(5)))
-        toucher = components.Shell('shell', "echo '{inputs.i.value}, {inputs.i.value} to {outputs.f1.path}' > {outputs.f1.path}")
+        toucher = pyperator.shell.Shell('shell', "echo '{inputs.i.value}, {inputs.i.value} to {outputs.f1.path}' > {outputs.f1.path}")
         toucher.outputs.add(FilePort('f1'))
         toucher.inputs.add(InputPort('i'))
         toucher.DynamicFormatter('f1', "{inputs.i.value}.txt")
@@ -312,12 +317,12 @@ class TestMultigraph(TestCase):
     def testWildcardsFormatter(self):
         #Source
         source1 = GeneratorSource('s1', (i for i in range(5)))
-        toucher = components.Shell('shell', "echo '{inputs.i.value}, {inputs.i.value} to {outputs.f1.path}' > {outputs.f1.path}")
+        toucher = pyperator.shell.Shell('shell', "echo '{inputs.i.value}, {inputs.i.value} to {outputs.f1.path}' > {outputs.f1.path}")
         toucher.outputs.add(FilePort('f1'))
         toucher.inputs.add(InputPort('i'))
         toucher.DynamicFormatter('f1', "{inputs.i.value}.prova")
         #add transformation
-        transformer = components.Shell('transf', "cp {inputs.IN.path} {outputs.out.path}")
+        transformer = pyperator.shell.Shell('transf', "cp {inputs.IN.path} {outputs.out.path}")
         transformer.inputs.add(FilePort('IN'))
         transformer.outputs.add(FilePort('out'))
         transformer.WildcardsExpression('IN', "{value}.{ext}")
@@ -331,7 +336,7 @@ class TestMultigraph(TestCase):
         #Source
         source1 = GeneratorSource('s1', (i for i in range(5)))
         source2 = GeneratorSource('s2', (i for i in range(5)))
-        toucher = components.Shell('shell', "echo '{inputs.i.value}, {inputs.j.value}' > {outputs.f1.path}")
+        toucher = pyperator.shell.Shell('shell', "echo '{inputs.i.value}, {inputs.j.value}' > {outputs.f1.path}")
         toucher.outputs.add(FilePort('f1'))
         toucher.inputs.add(InputPort('i'))
         toucher.inputs.add(InputPort('j'))
@@ -347,7 +352,7 @@ class TestMultigraph(TestCase):
     def testShellFail(self):
         #Source
         source1 = GeneratorSource('s1', (i for i in range(5)))
-        toucher = components.Shell('shell', "cara")
+        toucher = pyperator.shell.Shell('shell', "cara")
         toucher.outputs.add(FilePort('f1'))
         toucher.inputs.add(InputPort('i'))
         toucher.DynamicFormatter('f1', "{inputs.i.value}.test")
@@ -361,18 +366,18 @@ class TestMultigraph(TestCase):
     def testPatternStages(self):
         source1 = GeneratorSource('s1', (i for i in range(5)))
         #First component generates file
-        toucher = components.Shell('echo', "echo '{inputs.i.value} to {outputs.f1.path}' > {outputs.f1.path}")
+        toucher = pyperator.shell.Shell('echo', "echo '{inputs.i} to {outputs.f1}' > {outputs.f1}")
         toucher.inputs.add(InputPort('i'))
-        toucher.outputs.add(FilePort('f1'))
-        toucher.DynamicFormatter('f1', "{inputs.i.value}.txt")
+        toucher.outputs.add(OutputPort('f1'))
+        toucher.DynamicFormatter('f1', "{inputs.i}.txt")
         #Second component receives it
-        modified = components.Shell('edit', "echo 'i saw {inputs.f1.path}' > {outputs.f2.path}")
-        modified.inputs.add(FilePort('f1'))
-        modified.outputs.add(FilePort('f2'))
-        modified.DynamicFormatter('f2', "{inputs.f1.path}.changes")
+        modified = pyperator.shell.Shell('edit', "echo 'i saw {inputs.f1}' > {outputs.f2}")
+        modified.inputs.add(InputPort('f1'))
+        modified.outputs.add(OutputPort('f2'))
+        modified.DynamicFormatter('f2', "{inputs.f1}.changes")
         #Finally we need a sink to drive the network
         printer = ShowInputs('show_path')
-        printer.inputs.add(FilePort('f2'))
+        printer.inputs.add(InputPort('f2'))
         graph = Multigraph()
         graph.connect(source1.outputs.OUT, toucher.inputs.i)
         graph.connect(toucher.outputs.f1, modified.inputs.f1)
@@ -380,10 +385,44 @@ class TestMultigraph(TestCase):
         graph()
 
 
+    def testNiceConnection(self):
+        with  Multigraph() as g:
+            source1 = GeneratorSource('s1', (i for i in range(5)))
+            source2 = GeneratorSource('s2', (i for i in range(5)))
+            p = components.Product('prod')
+            printer = components.ShowInputs('print')
+            # #Add ports
+            p << InputPort('i')
+            p << InputPort('j')
+            p >> OutputPort('OUT')
+            printer << InputPort('IN')
+            #Connect ports
+            source1.outputs.OUT >> p.inputs.i
+            source2.outputs.OUT >> p.inputs.j
+            p.outputs.OUT >> printer.inputs.IN
+            # # #Add components
+            # g = g + source1 + source2 + p + printer
+            print(g.dot())
+        g()
+        #Connect them
+
+    def testConnectingToNonExisting(self):
+        source1 = GeneratorSource('s1', (i for i in range(5)))
+        source2 = GeneratorSource('s2', (i for i in range(5)))
+        p = components.Product('prod')
+        p << InputPort('i')
+        p >> OutputPort('OUT')
+        p.inputs.j
+        source1.outputs.OUT >> p.inputs.i
+        source2.outputs.OUT >> p.inputs.j
+
+
+
+
 
     def testProduct(self):
-        source1 = GeneratorSource('s1', (1 for i in range(5)))
-        source2 = GeneratorSource('s2', (2 for i in range(5)))
+        source1 = GeneratorSource('s1', (i for i in range(5)))
+        source2 = GeneratorSource('s2', (i for i in range(5)))
         p = components.Product('prod')
         printer = ShowInputs('printer')
         printer.inputs.add(InputPort('IN'))
@@ -394,6 +433,8 @@ class TestMultigraph(TestCase):
         g.connect(source1.outputs.OUT, p.inputs.i)
         g.connect(source2.outputs.OUT, p.inputs.j)
         g.connect(p.outputs.OUT, printer.inputs.IN)
+        print(list(g.iterarcs()))
+        print(g.dot())
         g()
 
 
