@@ -7,7 +7,7 @@ import pyperator.exceptions
 from pyperator.exceptions import PortNotExistingError, PortDisconnectedError, OutputOnlyError, InputOnlyError, \
     MultipleConnectionError, PortClosedError, PortAlreadyConnectedError
 from . import IP
-from .IP import InformationPacket, EndOfStream, FilePacket
+from .IP import InformationPacket, EndOfStream
 
 
 
@@ -174,22 +174,17 @@ class Port:
     async def send_packet(self, packet):
         if self.is_connected:
             if self._open:
-                if packet.exists:
-                    if packet.owner == self.component or packet.owner == None:
-                        for other in self.other:
-                            self.component._log.debug(
-                                "Component {}: sending {} to {}".format(self.component, str(packet), self.name))
-                            await other.queue.put(packet)
-                    else:
-                        error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
-                            self.component, str(packet), self.name)
-                        self.component._log.error(error_message)
-                        raise pyperator.exceptions.PacketOwnedError(error_message)
+                if packet.owner == self.component or packet.owner == None:
+                    for other in self.other:
+                        self.component._log.debug(
+                            "Component {}: sending {} to {}".format(self.component, str(packet), self.name))
+                        await other.queue.put(packet)
                 else:
-                    ex_str = 'Component {}, Port {}: The information packet with path {} does not exist'.format(
-                        self.component, self.port, packet.path)
-                    self.component._log.error(ex_str)
-                    raise pyperator.exceptions.FileNotExistingError(ex_str)
+                    error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
+                        self.component, str(packet), self.name)
+                    e =  pyperator.exceptions.PacketOwnedError(error_message)
+                    self.component._log.ex(e)
+                    raise e
             else:
                 raise PortClosedError()
         else:
