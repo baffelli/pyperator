@@ -209,7 +209,7 @@ class Port:
             if packet.is_eos and self.queue.empty():
                 self.component._log.info(
                     "Component {}: stopping because {} was received".format(self.component, packet))
-                raise StopAsyncIteration
+                raise StopAsyncIteration('Received EOS')
             else:
                 return packet
         else:
