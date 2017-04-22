@@ -8,17 +8,62 @@ import __main__ as main
 from . import exceptions
 from . import logging as _log
 
+from abc import ABCMeta, abstractmethod
 
 import traceback
 
 import concurrent.futures
 
-
 _global_dag = None
 
 
+class Graph(ABCMeta):
+    """
+    This is the abstract graph from which the different types of graphs
+    used by pyperator are derived
+    """
 
-class Multigraph():
+    @abstractmethod
+    def iternodes(self):
+        """
+        This methods is a generator
+        that yields all the nodes in the graph
+        
+        :return: 
+        A generator objects iterating over the nodes
+        """
+        pass
+
+    @abstractmethod
+    def iterarcs(self):
+        """
+        Generator that yields all arcs in the graph
+        
+        :return: 
+        A generator object that yields pairs of `(source, dest)`
+        """
+        pass
+
+    @abstractmethod
+    async def __call__(self):
+        pass
+
+
+class BipartiteGraph():
+    pass
+
+
+class Multigraph(Graph):
+    """
+    This is a Multigraph, used to represent a FBP-style network.
+    In this cases, components are of type :class:`pyperator.nodes.AbstractComponent`. This
+    class has several convience methods to easily add nodes to the network and connect them.
+    For example, a network can be created with the context manager using 
+    
+    .. code-block:: python
+        print("a")
+    """
+
     def __init__(self, log_path=None, name='DAG', log_level=logging.DEBUG, workdir=None):
         self._nodes = set()
         self.name = name
@@ -44,7 +89,7 @@ class Multigraph():
         if self._log:
             return self._log
         else:
-           return _log.setup_custom_logger('buttavia')
+            return _log.setup_custom_logger('buttavia')
 
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
@@ -128,8 +173,9 @@ class Multigraph():
         arc_str = ("{} -> {}".format(k.gv_string(), v.gv_string()) for k, v in self.iterarcs())
         # IIPs as additional nodes
         iip_nodes = "\n".join(
-            ["\n".join(["node [shape=box,style=rounded] {name} [label=\"{iip}\"]".format(name=id(iip), iip=iip) for (port, iip)
-                        in node.inputs.iip_iter()]) for node in self.iternodes()])
+            ["\n".join(
+                ["node [shape=box,style=rounded] {name} [label=\"{iip}\"]".format(name=id(iip), iip=iip) for (port, iip)
+                 in node.inputs.iip_iter()]) for node in self.iternodes()])
         iip_arcs = "\n".join(
             ["\n".join(["{source} -> {dest}".format(source=id(iip), dest=port.gv_string()) for (port, iip)
                         in node.inputs.iip_iter()]) for node in self.iternodes()])
