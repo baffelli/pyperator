@@ -119,6 +119,7 @@ class Port:
         self._iip = packet
 
     def kickstart(self):
+        packet = InformationPacket(None)
         self.queue.put_nowait(packet)
         self.component._log.debug('Component {}: Kickstarting port {}'.format(self.component, self.name))
 
@@ -150,7 +151,6 @@ class Port:
     def connect(self, other_port):
         if other_port not in self.other:
             self.other.append(other_port)
-            # other_port.connect(self)
         else:
             raise PortAlreadyConnectedError(self, other_port)
 
@@ -278,15 +278,6 @@ class InputPort(Port):
     def __init__(self, *args, **kwargs):
         super(InputPort, self).__init__(*args, **kwargs)
         self._n_ohter = 0
-
-    def connect(self, other_port):
-        if self._n_ohter == 0:
-            super(InputPort, self).connect(other_port)
-            self._n_ohter += 1
-        else:
-            e = MultipleConnectionError(self)
-            self.component._log.error(e)
-            raise e
 
     async def send_packet(self, packet):
         raise InputOnlyError(self)
