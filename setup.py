@@ -5,6 +5,6 @@ setup(name='pyperator',
       description='Simple graph based push pipeline executor',
       author='Simone Baffelli',
       author_email='baffelli@ifu.baug.ethz.ch',
-      requires=['pyparsing'],
+      requires=[],
       license='MIT',
       include_package_data=True)
