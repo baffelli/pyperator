@@ -284,6 +284,9 @@ class InputPort(Port):
 
 
 
+class ArrayPort(Port):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class PortRegister:
