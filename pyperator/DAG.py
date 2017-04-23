@@ -17,7 +17,7 @@ import concurrent.futures
 _global_dag = None
 
 
-class Graph(ABCMeta):
+class Graph(metaclass=ABCMeta):
     """
     This is the abstract graph from which the different types of graphs
     used by pyperator are derived
@@ -49,7 +49,7 @@ class Graph(ABCMeta):
         pass
 
 
-class BipartiteGraph():
+class BipartiteGraph(Graph):
     pass
 
 
