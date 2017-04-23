@@ -13,32 +13,6 @@ from .IP import InformationPacket, EndOfStream
 
 import logging
 
-# def reAction(s, l, t):
-#     try:
-#         pt = _re.compile(t[0]).pattern
-#     except:
-#         pt = ""
-#     return pt
-#
-#
-# def escapeAction(s, l, t):
-#     return '\\' + t[0]
-#
-#
-# # Define grammar
-# # opener and closer
-# _pp.ParserElement.setDefaultWhitespaceChars('\n ')
-# wc_open = _pp.Literal('{')
-# wc_close = _pp.Literal('}')
-#
-# wc_content = _pp.Word(_pp.alphanums).setParseAction(lambda t: t[0])
-# # Path literals to escape
-# path_literal = _pp.Literal('/').setParseAction(escapeAction)
-# dot_literal = _pp.Literal('.').setParseAction(escapeAction)
-# # Separator for regex
-# re_sep = _pp.Literal(',').suppress()
-
-
 # Constraint for regex (from snakemake)
 regex_wildcards = _re.compile(
     r"""
@@ -53,15 +27,6 @@ regex_wildcards = _re.compile(
         ))\1
     \}
     """, _re.VERBOSE)
-
-
-# wildcard = (wc_open + (wc_content)('wc_name') + _pp.Optional(re_sep + re('re')) + wc_close)
-# # Define path and escape, finally join it
-# path = _pp.ZeroOrMore(_pp.Word(_pp.alphanums)) ^ _pp.ZeroOrMore(wildcard) ^ _pp.ZeroOrMore(
-#     dot_literal) ^ _pp.ZeroOrMore(path_literal)
-#
-# res = re.searchString('/a{d,*}/c{e,e{3}}.d')
-# print(res.asList())
 
 
 class Wildcards(object):
@@ -119,11 +84,31 @@ def log_schedule(method):
 
 
 class Port:
-    def __init__(self, name, size=-1, component=None, blocking=False):
+    """
+    This is a regular Port component, that can be connected to another port
+    in the same or in another component. It offers methods to send and receive values and packets.
+    The port can be configured to have an unlimited capacity or it can be bounded. In the second case,
+    sending will when  the connection capacity is reached.
+    
+    ============================
+    Handling several connections
+    ============================
+    
+    If several ports are connected to this
+    port simultaneously, they will all send packets to it in a unordered manner and the port
+    will not be able to distinguish from which component the packets are 
+    being sent (see `noflo`_ ).
+    
+    For output ports, if several port are connected to the same source, the packets will be replicated
+    to all sinks.
+    
+    .. _noflo: https://github.com/noflo/noflo/issues/90
+    """
+    def __init__(self, name, size=-1, component=None):
         self.name = name
         self.component = component
         self.other = []
-        self.queue = asyncio.Queue()
+        self.queue = asyncio.Queue(maxsize=size)
         self._open = True
         self._iip = False
 
