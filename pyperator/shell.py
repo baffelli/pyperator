@@ -29,6 +29,10 @@ def make_async_call(cmd,stderr, stdout):
     return asyncio.create_subprocess_shell(cmd,stdout=stdout, stderr=stderr)
 
 
+
+
+
+
 class PacketRegister(_collabc.Mapping):
     """
     This class is used to represent a collection of
@@ -207,6 +211,8 @@ class FileOperator(Component):
             await asyncio.sleep(0)
 
 
+
+
 class Shell(FileOperator):
     """
     This component executes a shell script with inputs and outputs
@@ -224,6 +230,44 @@ class Shell(FileOperator):
     async def produce_outputs(self, input_packets, output_packets, wildcards):
         formatted_cmd = self.cmd.format(inputs=input_packets, outputs=output_packets, wildcards=wildcards)
         self._log.info("Executing command {}".format(formatted_cmd))
+        # Define stdout and stderr pipes
+        stdout = asyncio.subprocess.PIPE
+        stderr = asyncio.subprocess.PIPE
+        proc = await make_async_call(formatted_cmd, stderr, stdout)
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            fail_str = "running command '{}' failed with output: \n {}".format(formatted_cmd, stderr.strip())
+            e = CommandFailedError(self, fail_str)
+            self._log.error(e)
+            raise e
+        else:
+            success_str = "Component {}: command successfully run, with output: {}".format(self.name, stdout)
+            self._log.info(success_str)
+            return output_packets
+
+
+class ShellScript(Shell):
+    """
+    This component executes an external shell script, whose path
+    is given in the constructor
+    """
+
+    def __init__(self, name, script):
+        super(ShellScript, self).__init__(name, None)
+        self.script = script
+        self._log.info("Component {} initialized to run script {}".format(self.name, self.script))
+        self.dag.commit_external(self.script, "Component {} uses script {}".format(self.name, self.script) )
+
+
+
+
+
+    async def produce_outputs(self, input_packets, output_packets, wildcards):
+        with open(self.script) as input_script:
+            formatted_cmd = input_script.read().format(inputs=input_packets,
+                                                       outputs=output_packets, wildcards=wildcards)
+
+        self._log.info("Executing command {}".format(self.script))
         # Define stdout and stderr pipes
         stdout = asyncio.subprocess.PIPE
         stderr = asyncio.subprocess.PIPE
