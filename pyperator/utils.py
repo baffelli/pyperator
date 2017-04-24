@@ -260,8 +260,8 @@ class FilePort(Port):
     InformationPackets
     """
 
-    def __init__(self, name, component=None):
-        super(FilePort, self).__init__(name, component=component)
+    def __init__(self, *args, **kwargs):
+        super(FilePort, self).__init__(*args, **kwargs)
 
 
 class OutputPort(Port):
