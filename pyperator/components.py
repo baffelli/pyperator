@@ -213,6 +213,30 @@ class ConstantSource(Component):
                 await asyncio.sleep(0)
 
 
+class Repeat(Component):
+    """
+    This component receives
+    from his input once only
+    and keeps on repeating
+    it on the output
+    """
+
+    def __init__(self, name):
+        super(Repeat, self).__init__(name)
+        self.inputs.add(InputPort('IN'))
+        self.outputs.add(OutputPort('OUT'))
+
+    async def __call__(self):
+        packet = await self.inputs.IN.receive_packet()
+        self.inputs.IN.close()
+        with self.outputs.OUT:
+            while True:
+                self.outputs.OUT.send_packet(packet.copy())
+
+
+
+
+
 class Filter(Component):
     """
     This component filters the input according to the given predicate
