@@ -109,7 +109,7 @@ class Port:
         self.component = component
         self.other = []
         self.queue = asyncio.Queue(maxsize=size)
-        self._open = True
+        self.open = True
         self._iip = False
 
     def set_initial_packet(self, value):
@@ -156,20 +156,20 @@ class Port:
 
     async def send_packet(self, packet):
         if self.is_connected:
-            if self._open:
-                if packet.owner == self.component or packet.owner == None:
-                    for other in self.other:
+            if packet.owner == self.component or packet.owner == None:
+                for other in self.other:
+                    if other.open:
                         self.component._log.debug(
                             "Component {}: sending {} to {}".format(self.component, str(packet), self.name))
                         await other.queue.put(packet)
-                else:
-                    error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
-                        self.component, str(packet), self.name)
-                    e =  pyperator.exceptions.PacketOwnedError(error_message)
-                    self.component._log.ex(e)
-                    raise e
+                    else:
+                        raise PortClosedError()
             else:
-                raise PortClosedError()
+                error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
+                    self.component, str(packet), self.name)
+                e =  pyperator.exceptions.PacketOwnedError(error_message)
+                self.component._log.ex(e)
+                raise e
         else:
             ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
             packet.drop()
@@ -183,22 +183,28 @@ class Port:
 
     async def receive_packet(self):
         if self.is_connected:
-            self.component._log.debug("Component {}: receiving at {}".format(self.component, self.name))
-            if not self._iip:
-                packet = await self.queue.get()
-                self.queue.task_done()
+            if self.open:
+                self.component._log.debug("Component {}: receiving at {}".format(self.component, self.name))
+                if not self._iip:
+                    packet = await self.queue.get()
+                    self.queue.task_done()
+                else:
+                    packet = self._iip
+                    self.component._log.debug("Component {}: receiving IIP at {}, the port will be closed".format(self.component, self.name))
+                    self.open = False
+                logging.getLogger('root').debug(
+                    "Component {}: received {} from {}".format(self.component, packet, self.name))
+                if packet.is_eos and self.queue.empty():
+                    stop_message = "Component {}: stopping because {} was received".format(self.component, packet)
+                    self.component._log.info(stop_message)
+                    raise StopAsyncIteration(stop_message)
+                else:
+                    return packet
             else:
-                packet = self._iip
-            logging.getLogger('root').debug(
-                "Component {}: received {} from {}".format(self.component, packet, self.name))
-            if packet.is_eos and self.queue.empty():
-                stop_message = "Component {}: stopping because {} was received".format(self.component, packet)
-                self.component._log.info(stop_message)
-                raise StopAsyncIteration(stop_message)
-            else:
-                return packet
+                return EndOfStream()
         else:
             raise PortDisconnectedError
+
 
     def __aiter__(self):
         return self
@@ -220,7 +226,7 @@ class Port:
         packet = EndOfStream()
         packet.owner = self.component
         await self.send_packet(packet)
-        self._open = False
+        self.open = False
         self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
 
 
@@ -272,15 +278,26 @@ class OutputPort(Port):
     async def receive_packet(self):
         raise OutputOnlyError(self)
 
+    async def close(self):
+        packet = EndOfStream()
+        packet.owner = self.component
+        await self.send_packet(packet)
+        self._open = False
+        self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
+
 
 
 class InputPort(Port):
     def __init__(self, *args, **kwargs):
         super(InputPort, self).__init__(*args, **kwargs)
-        self._n_ohter = 0
 
     async def send_packet(self, packet):
         raise InputOnlyError(self)
+
+    async def close(self):
+        self._open = False
+        self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
+
 
 
 
@@ -306,6 +323,7 @@ class PortRegister:
             return self.ports.get(item)
         else:
             raise PortNotExistingError(self.component, str(item))
+
     def __getattr__(self, item):
         return self[item]
 
@@ -345,7 +363,8 @@ class PortRegister:
         futures = {}
         packets = {}
         for p_name, p in self.items():
-            futures[p_name] = asyncio.ensure_future(p.receive_packet())
+            if p.open:
+                futures[p_name] = asyncio.ensure_future(p.receive_packet())
         for k, v in futures.items():
             data = await v
             packets[k] = data
