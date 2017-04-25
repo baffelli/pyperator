@@ -11,18 +11,20 @@ import pathlib as _path
 class GeneratorSource(Component):
     """
     This is a component that returns a single element from a generator
-    to a single output
+    passed at initalization time to 'gen'
+    to a single output 'OUT'
     """
 
-    def __init__(self, name, generator, output='OUT'):
+    def __init__(self, name):
         super(GeneratorSource, self).__init__(name)
-        self._gen = generator
-        self.outputs.add(OutputPort(output))
+        self.outputs.add(OutputPort('OUT'))
+        self.inputs.add(InputPort('gen'))
 
     @log_schedule
     async def __call__(self):
+        gen = await self.inputs.gen.receive()
         async with self.outputs.OUT:
-            for g in self._gen:
+            for g in gen:
                 await asyncio.wait(self.send_to_all(g))
                 # await asyncio.sleep(0)
 
@@ -112,12 +114,13 @@ class ReplacePath(Component):
 
     def __init__(self, name, pattern):
         super(ReplacePath, self).__init__(name)
-        self.pattern = pattern
-        self.inputs.add(FilePort('IN'))
-        self.outputs.add(FilePort('OUT'))
+        self.inputs.add(InputPort('IN'))
+        self.inputs.add(InputPort('pattern'))
+        self.outputs.add(OutputPort('OUT'))
 
     @log_schedule
     async def __call__(self):
+        pattern = await self.inputs.pattern.receive()
         while True:
             p = await self.inputs.IN.receive_packet()
             p1 = IP.InformationPacket(p.path.replace(*self.pattern), owner=self)
@@ -125,12 +128,6 @@ class ReplacePath(Component):
             await self.outputs.OUT.send_packet(p1)
             await asyncio.sleep(0)
 
-
-class PathToInformationPacket(Component):
-    """
-    This component converts a path to a file packet
-    """
-    pass
 
 
 class Split(Component):
@@ -162,54 +159,55 @@ class Split(Component):
                 await asyncio.sleep(0)
 
 
-class IterSource(Component):
-    """
-    This component returns a Bracket IP
-    from a itertool function such as product
-    """
-
-    def __init__(self, name, *generators, function=_iter.combinations):
-        super(IterSource, self).__init__(name)
-        self.generators = generators
-        self.outputs.add(OutputPort('OUT'))
-        self.function = function
-
-    @log_schedule
-    async def __call__(self):
-        for items in self.function(*self.generators):
-            open = IP.OpenBracket()
-            await self.outputs.OUT.send_packet(open)
-            for item in items:
-                packet = IP.InformationPacket(item)
-                await self.outputs.OUT.send_packet(packet)
-            await self.outputs.OUT.send_packet(IP.CloseBracket())
-        await asyncio.sleep(0)
-        await self.close_downstream()
+# class IterSource(Component):
+#     """
+#     This component returns a Bracket IP
+#     from a itertool function such as product
+#     """
+#
+#     def __init__(self, name, *generators, function=_iter.combinations):
+#         super(IterSource, self).__init__(name)
+#         self.generators = generators
+#         self.outputs.add(OutputPort('OUT'))
+#         self.function = function
+#
+#     @log_schedule
+#     async def __call__(self):
+#         for items in self.function(*self.generators):
+#             open = IP.OpenBracket()
+#             await self.outputs.OUT.send_packet(open)
+#             for item in items:
+#                 packet = IP.InformationPacket(item)
+#                 await self.outputs.OUT.send_packet(packet)
+#             await self.outputs.OUT.send_packet(IP.CloseBracket())
+#         await asyncio.sleep(0)
+#         await self.close_downstream()
 
 
 class ConstantSource(Component):
     """
     This is a component that continously outputs a constant to
-    all the outputs, up to to :repeat: times, infinitely if :repeat: is none
+    the output 'OUT', up to to :repeat: times, infinitely if :repeat: is none
+    The constant is given to the 'constant' port
     """
 
-    def __init__(self, name, constant, outputs=['OUT'], repeat=None):
+    def __init__(self, name):
         super(ConstantSource, self).__init__(name)
-        self.constant = constant
-        self.repeat = repeat
-        [self.outputs.add(OutputPort(output_name)) for output_name in outputs]
+        self.outputs.add(OutputPort('OUT'))
+        self.outputs.add(InputPort('constant'))
+        self.outputs.add(InputPort('repeat'))
 
-    def type_str(self):
-        return "constant {}".format(self.constant)
 
     @log_schedule
     async def __call__(self):
+        repeat = await self.inputs.repeat.receive()
+        constant = await self.inputs.constant.receive()
         for i in _iter.count():
-            if self.repeat and i >= self.repeat:
+            if repeat and i >= repeat:
                 return
             else:
                 # packet = IP.InformationPacket
-                await asyncio.wait(self.send_to_all(self.constant))
+                await asyncio.wait(self.send_to_all(constant))
                 await asyncio.sleep(0)
 
 
@@ -239,25 +237,25 @@ class Repeat(Component):
 
 class Filter(Component):
     """
-    This component filters the input according to the given predicate
-    and sends it to the output
+    This component filters the input in 'IN' according to the given predicate in the port 'predicate'
+    and sends it to the output 'OUT' if the predicate is true
     """
 
-    def __init__(self, name, predicate, **kwargs):
+    def __init__(self, name):
         super(Filter, self).__init__(name)
-        self._predicate = predicate
+        self.inputs.add(InputPort('IN'))
+        self.inputs.add(InputPort('predicate'))
+        self.outputs.add(OutputPort('OUT'))
 
     @log_schedule
     async def __call__(self):
+        predicate = self.inputs.predicate.receive()
         while True:
-            data = await self.receive()
-            filter_result = self._predicate(**data)
+            data = await self.IN.receive()
+            filter_result = predicate(data)
             # If the predicate is true, the data is sent
             if filter_result:
-                data = {port_name: data for port_name, port in self.outputs.items()}
-                await asyncio.wait(self.send_to_all(filter_result))
-            # otherwise nothing is sent and a message is sent  to
-            # the components telling them that the filter failed
+                await self.outputs.OUT.send(data)
             else:
                 continue
 
