@@ -190,8 +190,8 @@ class Port:
                     self.queue.task_done()
                 else:
                     packet = self._iip
-                    self.component._log.debug("Component {}: receiving IIP at {}, the port will be closed".format(self.component, self.name))
-                    self.open = False
+                    self.component._log.debug("Component {}: receiving IIP at {}".format(self.component, self.name))
+                    # self.open = False
                 logging.getLogger('root').debug(
                     "Component {}: received {} from {}".format(self.component, packet, self.name))
                 if packet.is_eos and self.queue.empty():
