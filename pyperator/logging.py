@@ -1,17 +1,17 @@
-import logging
+import logging as _log
 
 
-def setup_custom_logger(name , level=logging.DEBUG, file=None):
-    formatter = logging.Formatter(fmt='%(asctime)s  %(levelname)s - %(message)s')
+def setup_custom_logger(name , level=_log.DEBUG, file=None):
+    formatter = _log.Formatter(fmt='%(asctime)s  %(levelname)s - %(message)s')
 
-    handler = logging.StreamHandler()
+    handler = _log.StreamHandler()
     handler.setFormatter(formatter)
 
-    logger = logging.getLogger(name)
+    logger = _log.getLogger(name)
     logger.setLevel(level)
     logger.addHandler(handler)
     if file:
-        file_handler = logging.FileHandler(file, mode='w+')
+        file_handler = _log.FileHandler(file, mode='w+')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
     return logger
