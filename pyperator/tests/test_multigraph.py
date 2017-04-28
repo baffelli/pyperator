@@ -469,7 +469,10 @@ class TestMultigraph(TestCase):
             source1 = GeneratorSource('s1')
             source2 = GeneratorSource('s2',)
             p = components.Product('prod')
-            source1.outputs.OUT >> p
+            p << InputPort('IN1')
+            p << InputPort('IN2')
+            source1.outputs.OUT >> p.inputs.IN1
+            source2.outputs.OUT >> p.inputs.IN2
             sg.export_output(p.outputs.OUT)
             source1.inputs.gen.set_initial_packet(range(5))
             source2.inputs.gen.set_initial_packet(range(5))
@@ -477,4 +480,9 @@ class TestMultigraph(TestCase):
 
         with Multigraph('b') as g:
             g.add_node(sg)
+            printer  = components.ShowInputs('show')
+            printer << InputPort('IN')
+            sg.outputs.OUT >> printer.inputs.IN
+
         print('subgraph', g.dot())
+        g()
