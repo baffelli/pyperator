@@ -12,18 +12,15 @@ from abc import ABCMeta, abstractmethod
 
 import shutil
 
-import uuid
 
-import tempfile as _tempfile
-
-import traceback
-
-import concurrent.futures
 
 
 import git
 
 _global_dag = None
+
+
+from bokeh.server.server import Server
 
 
 class Graph(metaclass=ABCMeta):
@@ -85,16 +82,16 @@ class Multigraph(Graph):
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
         self.log.info("Created DAG with workdir {}".format(self.workdir))
         #Create repository to track code changes
-        try:
-            repo_path = _os.mkdir(self.workdir + 'tracking')
-        except FileExistsError:
-            pass
-        try:
-            self.tracking_dir = git.Repo.init(self.workdir + 'tracking', self.name)
-            self.commit_code('Initial Commit')
-        except Exception as e:
-            raise(e)
-        #Write the code in the temporary dir for tracking
+        # try:
+        #     repo_path = _os.mkdir(self.workdir + 'tracking')
+        # except FileExistsError:
+        #     pass
+        # try:
+        #     self.tracking_dir = git.Repo.init(self.workdir + 'tracking', self.name)
+        #     self.commit_code('Initial Commit')
+        # except Exception as e:
+        #     raise(e)
+        # #Write the code in the temporary dir for tracking
 
 
 
@@ -112,7 +109,7 @@ class Multigraph(Graph):
        return file in self.tracking_dir.index.diff(None, name_only=True).iter_change_type('A')
 
     def code_change(self, file):
-       return file in self.tracking_dir.index.diff(None,name_only=True).iter_change_type('M')
+        return file in self.tracking_dir.index.diff(None,name_only=True)
 
     def commit_code(self, message):
         self.commit_external(main.__file__, message)
@@ -121,13 +118,11 @@ class Multigraph(Graph):
     def commit_external(self, file, message):
         file = _os.path.basename(shutil.copy(file, self.tracking_dir.working_dir))
         if self.code_change(file):
-            commit_message = self.base_commit_message + message + ", file {file} added because code changed".format(file)
+            commit_message = self.base_commit_message + message + ", file {} added because code changed".format(file)
         elif file in self.tracking_dir.untracked_files:
-            print('here')
-            commit_message = self.base_commit_message + message + "  files {file} added because the file is new".format(file)
+            commit_message = self.base_commit_message + message + "  files {} added because the file is new".format(file)
         else:
             commit_message = None
-        print(commit_message)
         if commit_message:
             self.tracking_dir.index.add([file])
             self.tracking_dir.index.commit(commit_message)
@@ -231,7 +226,7 @@ class Multigraph(Graph):
         # List of nodes
         nodes_gen = (node.gv_node() for node in self.iternodes())
         # List of arcs
-        arc_str = ("{} -> {}".format(k.gv_string(), v.gv_string()) for k, v in self.iterarcs())
+        arc_str = ("{} -> {} [arrowType=normal]".format(k.gv_string(), v.gv_string(), v.size) for k, v in self.iterarcs())
         # IIPs as additional nodes
         iip_nodes = "\n".join(
             ["\n".join(
@@ -253,8 +248,9 @@ class Multigraph(Graph):
 
     def __call__(self):
         #Add code to the repository
-        self.commit_code('Commiting code before running DAG'.format(self.name))
+        # self.commit_code('Commiting code before running DAG'.format(self.name))
         loop = asyncio.get_event_loop()
+        self.loop = loop
         self.log.info('DAG {}: Starting DAG'.format(self.name))
         # The producers are all the nodes that have no inputs
         producers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0])
@@ -264,12 +260,13 @@ class Multigraph(Graph):
         self.log.info('DAG {}: Consumers are {}'.format(self.name, consumers))
         self.log.debug('DAG {}: Running Tasks'.format(self.name))
         try:
-            loop.run_until_complete(producers)
-            loop.run_until_complete(consumers)
+            [loop.create_task(node() for node in self.iternodes())]
+            loop.run_forever()
+            # loop.create_task(consumers)
         except StopAsyncIteration as e:
             self.log.info('DAG {}: Received EOS'.format(self.name))
         except Exception as e:
-            self.commit_code("The DAG failed with the message {}".format(e))
+            # self.commit_code("The DAG failed with the message {}".format(e))
             self.log.exception(e)
             self.log.info('DAG {}: Stopping DAG by cancelling scheduled tasks'.format(self.name))
             if not loop.is_closed():
