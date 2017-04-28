@@ -116,7 +116,7 @@ class FileOperator(Component):
         wildcards_dict = {}
         for inport, inpacket in received_data.items():
             if inport in self.wildcard_expressions:
-                wildcards_dict[inport] = self.wildcard_expressions[inport].parse(inpacket.path)
+                wildcards_dict[inport] = self.wildcard_expressions[inport].parse(inpacket)
                 self._log.debug(
                     'Component {}: Port {}, with wildcard pattern {}, wildcards are {}'.format(self.name, inport,
                                                                                                self.wildcard_expressions[
@@ -256,7 +256,7 @@ class ShellScript(Shell):
         super(ShellScript, self).__init__(name, None)
         self.script = script
         self._log.info("Component {} initialized to run script {}".format(self.name, self.script))
-        self.dag.commit_external(self.script, "Component {} uses script {}".format(self.name, self.script) )
+        # self.dag.commit_external(self.script, "Component {} uses script {}".format(self.name, self.script) )
 
 
 
@@ -266,6 +266,7 @@ class ShellScript(Shell):
         with open(self.script) as input_script:
             formatted_cmd = input_script.read().format(inputs=input_packets,
                                                        outputs=output_packets, wildcards=wildcards)
+            print(formatted_cmd)
 
         self._log.info("Executing command {}".format(self.script))
         # Define stdout and stderr pipes
