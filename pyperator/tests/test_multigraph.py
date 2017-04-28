@@ -9,7 +9,8 @@ from pyperator.nodes import Component
 import asyncio
 from pyperator.utils import InputPort, OutputPort, FilePort, Wildcards
 from pyperator import IP
-import pyperator as pyper
+
+from pyperator import subgraph
 
 import os
 import uuid
@@ -154,7 +155,8 @@ class TestMultigraph(TestCase):
 
 
     def testPortAiter(self):
-        source = GeneratorSource('s', source_gen)
+        source = GeneratorSource('s')
+        source.inputs.generator.set_initial_packet(source_gen)
         printer = ShowInputs('in')
         printer.inputs.add(InputPort('in1'))
         g = Multigraph()
@@ -185,7 +187,8 @@ class TestMultigraph(TestCase):
 
 
     def testLinearPipeline(self):
-        source = GeneratorSource('s', source_gen)
+        source = GeneratorSource('s')
+        source.inputs.gen.set_initial_packet(source_gen)
         shower = ShowInputs('printer')
         shower.inputs.add(InputPort('in1'))
         graph = Multigraph()
@@ -199,6 +202,16 @@ class TestMultigraph(TestCase):
         graph = Multigraph()
         graph.connect(source.outputs['OUT'], shower.inputs['in1'])
         graph()
+
+    def testClose(self):
+        with Multigraph() as g:
+            producer = GeneratorSource('s1', (i for i in range(100)))
+            constant = ConstantSource('const', 4)
+            producer >> OutputPort('OUT')
+            consumer = ShowInputs('printer')
+            consumer << InputPort('IN')
+            producer.outputs.OUT >> consumer.inputs.IN
+        g()
 
     def testSumPipeline(self):
         source1 = GeneratorSource('s1',  (i for i in range(100)))
@@ -256,7 +269,7 @@ class TestMultigraph(TestCase):
 
 
     def testSplit(self):
-        source1 = components.IterSource('s1', (i for i in range(3)),(i for i in range(3)),)
+        source1 = components.Product('s1', (i for i in range(3)),(i for i in range(3)),)
         splitter = components.Split('split in two')
         splitter.outputs.add(OutputPort('a'))
         splitter.outputs.add(OutputPort('b'))
@@ -385,6 +398,19 @@ class TestMultigraph(TestCase):
         graph()
 
 
+    def testIIP(self):
+        with Multigraph() as g:
+            source1 = GeneratorSource('s1', (i for i in range(5)))
+            printer = components.ShowInputs('print')
+            printer << InputPort('i')
+            printer << InputPort('j')
+            #Add IIP to port
+            printer.inputs.j.set_initial_packet('ciaone')
+            #Connect remaining ports
+            source1.outputs.OUT >> printer.inputs.i
+            g()
+
+
     def testNiceConnection(self):
         with  Multigraph() as g:
             source1 = GeneratorSource('s1', (i for i in range(5)))
@@ -418,8 +444,6 @@ class TestMultigraph(TestCase):
 
 
 
-
-
     def testProduct(self):
         source1 = GeneratorSource('s1', (i for i in range(5)))
         source2 = GeneratorSource('s2', (i for i in range(5)))
@@ -438,3 +462,19 @@ class TestMultigraph(TestCase):
         g()
 
 
+
+    def testSubgraph(self):
+
+        with subgraph.Subgraph('a') as sg:
+            source1 = GeneratorSource('s1')
+            source2 = GeneratorSource('s2',)
+            p = components.Product('prod')
+            source1.outputs.OUT >> p
+            sg.export_output(p.outputs.OUT)
+            source1.inputs.gen.set_initial_packet(range(5))
+            source2.inputs.gen.set_initial_packet(range(5))
+        print(sg.dot())
+
+        with Multigraph('b') as g:
+            g.add_node(sg)
+        print('subgraph', g.dot())

@@ -1,29 +1,33 @@
 from . import DAG
 from . import components
 from . import utils
+from . import nodes
+import asyncio
 
-class Subgraph(DAG.Multigraph):
+class Subgraph(DAG.Multigraph, nodes.Component):
 
     def __init__(self, name):
         super(Subgraph, self).__init__(name)
         self.inputs = utils.PortRegister(self)
         self.outputs = utils.PortRegister(self)
-        print(DAG._global_dag.name)
-        self.dag = DAG._global_dag or None
-        if self.dag:
-            [DAG._old_dag.add_node(node) for node in self.iternodes()]
+        self.color ='grey'
+
 
     def export_input(self, port):
         for node in self.iternodes():
-            if port in node.inputs:
+            if port in node.inputs.values():
                 self.inputs.add(port)
 
     def export_output(self, port):
         for node in self.iternodes():
             if port in node.outputs.values():
-                print('yes')
                 self.outputs.add(port)
                 return
 
+
     async def __call__(self):
-        pass
+     if self.dag:
+         self.dag.loop.run_until_complete(self.iternodes())
+
+
+
