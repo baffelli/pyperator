@@ -68,6 +68,7 @@ class Product(Component):
     def __init__(self, name, fun=lambda packets:_iter.product(*packets)):
         super().__init__(name)
         self._fun = fun
+        self.outputs.add(OutputPort('OUT'))
 
     @log_schedule
     async def __call__(self):
