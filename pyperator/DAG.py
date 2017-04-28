@@ -218,11 +218,12 @@ class Multigraph(Graph):
         _global_dag = self._old_dag
 
     def __repr__(self):
-        arc_str = ("{} -> {}".format(conn.gv_string(), conn.gv_string()) for conn in self.iterarcs())
+        arc_str = ("{} -> {}".format(s.gv_string(), v.gv_string()) for s,v in self.iterarcs())
         out_str = "\n".join(arc_str)
         return out_str
 
-    def dot(self):
+
+    def graph_dot_table(self):
         # List of nodes
         nodes_gen = (node.gv_node() for node in self.iternodes())
         # List of arcs
@@ -236,14 +237,20 @@ class Multigraph(Graph):
             ["\n".join(["{source} -> {dest}".format(source=id(iip), dest=port.gv_string()) for (port, iip)
                         in node.inputs.iip_iter()]) for node in self.iternodes()])
         graph_str = """
-            digraph DAG{{
-            graph[bgcolor=white, margin=0]
                 {nodes}
                 {iipnodes}
                 {edges}
                 {iiparcs}
-            }}
             """.format(nodes=";\n".join(nodes_gen), edges="\n".join(arc_str), iipnodes=iip_nodes, iiparcs=iip_arcs)
+        return _tw.dedent(graph_str)
+
+    def dot(self):
+        graph_str = """
+            digraph DAG{{
+            graph[bgcolor=white, margin=0]
+                {graph_table}
+            }}
+            """.format(graph_table=self.graph_dot_table())
         return _tw.dedent(graph_str)
 
     def __call__(self):

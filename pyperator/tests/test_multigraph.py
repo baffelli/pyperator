@@ -473,7 +473,7 @@ class TestMultigraph(TestCase):
             p << InputPort('IN2')
             source1.outputs.OUT >> p.inputs.IN1
             source2.outputs.OUT >> p.inputs.IN2
-            sg.export_output(p.outputs.OUT)
+            sg.export_output(p.outputs.OUT, 'OUT')
             source1.inputs.gen.set_initial_packet(range(5))
             source2.inputs.gen.set_initial_packet(range(5))
         print(sg.dot())
@@ -483,6 +483,6 @@ class TestMultigraph(TestCase):
             printer  = components.ShowInputs('show')
             printer << InputPort('IN')
             sg.outputs.OUT >> printer.inputs.IN
-
-        print('subgraph', g.dot())
-        g()
+        print(g.dot())
+        with open('./subgraph.dot','w+') as of:
+             of.write(g.dot())

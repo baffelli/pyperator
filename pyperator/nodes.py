@@ -116,8 +116,6 @@ class Component(AbstractComponent):
         futures = self.outputs.send_packets(packets)
         return futures
 
-    async def dot(self, ):
-        return self.gv_node()
 
     async def active(self):
         self.color = 'green'

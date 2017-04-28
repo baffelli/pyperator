@@ -12,16 +12,25 @@ class Subgraph(DAG.Multigraph, nodes.Component):
         self.color ='grey'
 
 
-    def export_input(self, port):
+    def export_input(self, port, name):
         for node in self.iternodes():
             if port in node.inputs.values():
                 self.inputs.add(port)
 
-    def export_output(self, port):
+    def export_output(self, port, name):
         for node in self.iternodes():
             if port in node.outputs.values():
                 self.outputs.add(port)
                 return
+
+    def gv_node(self):
+        st = """subgraph cluster_{name} {{
+                    {dot}  
+                    color=blue;
+                    label={lab};
+                        }}""".format(c=self.color, name=id(self), lab=self.name, dot=self.graph_dot_table())
+        return st
+
 
 
     async def __call__(self):
