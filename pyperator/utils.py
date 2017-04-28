@@ -106,6 +106,7 @@ class Port:
     """
     def __init__(self, name, size=-1, component=None):
         self.name = name
+        self.size = size
         self.component = component
         self.other = []
         self.queue = asyncio.Queue(maxsize=size)
@@ -113,9 +114,8 @@ class Port:
         self._iip = False
 
     def set_initial_packet(self, value):
-        self.component._log.debug("Set initial information packet for {} at port {}".format(self.name, self.component))
+        # self.component._log.debug("Set initial information packet for {} at port {}".format(self.name, self.component))
         packet = InformationPacket(value, owner=self.component)
-        # self.queue.put_nowait(packet)
         self._iip = packet
 
     def kickstart(self):
@@ -312,11 +312,15 @@ class PortRegister:
         self.ports = _od()
 
     def add(self, port):
+        self.add_as(port, port.name)
+
+    def add_as(self, port, name):
         try:
             port.component = self.component
         except AttributeError:
             raise PortNotExistingError(self.component, port)
-        self.ports.update({port.name: port})
+        self.ports.update({name: port})
+
 
     def __getitem__(self, item):
         if item in self.ports:
