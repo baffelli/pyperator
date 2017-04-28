@@ -262,6 +262,9 @@ class Multigraph(Graph):
         try:
             [loop.create_task(node() for node in self.iternodes())]
             loop.run_forever()
+            # pending = asyncio.Task.all_tasks()
+            # print(pending)
+            # loop.run_until_complete(asyncio.gather(*pending))
             # loop.create_task(consumers)
         except StopAsyncIteration as e:
             self.log.info('DAG {}: Received EOS'.format(self.name))

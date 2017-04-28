@@ -25,10 +25,10 @@ class Subgraph(DAG.Multigraph, nodes.Component):
 
 
     async def __call__(self):
-     if self.dag:
-         self.dag.log.debug("Component {} is a subgraph: Adding all nodes to the executor of {}".format(self.name, self.dag.name))
-         self.dag.loop.create_task([asyncio.ensure_future(node()) for node in self.iternodes()])
-         return
+        if self.dag:
+             self.dag.log.debug("Component {} is a subgraph: Adding all nodes to the executor of {}".format(self.name, self.dag.name))
+             futures = asyncio.gather(*[asyncio.ensure_future(node())for node in self.iternodes()])
+             return futures
 
 
 
