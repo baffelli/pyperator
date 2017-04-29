@@ -12,7 +12,7 @@ from abc import ABCMeta, abstractmethod
 
 import shutil
 
-
+from . import utils
 
 
 import git
@@ -73,11 +73,11 @@ class Multigraph(Graph):
         print("a")
     """
 
-    def __init__(self, name, log_path=None, log_level=logging.DEBUG, workdir=None):
+    def __init__(self, name, log=None, log_level=logging.DEBUG, workdir=None):
         self._nodes = set()
         self.name = name
         self.workdir = workdir or './'
-        self._log_path = self.workdir + self.name + '.log' or log_path or main.__file__.replace('.py', '.log')
+        self._log_path = None or log
         self.name = name or _os.path.basename(main.__file__)
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
         self.log.info("Created DAG {} with workdir {}".format(self.name, self.workdir))
@@ -92,6 +92,7 @@ class Multigraph(Graph):
         # except Exception as e:
         #     raise(e)
         # #Write the code in the temporary dir for tracking
+
 
 
 
