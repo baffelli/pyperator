@@ -73,14 +73,14 @@ class Multigraph(Graph):
         print("a")
     """
 
-    def __init__(self, log_path=None, name='DAG', log_level=logging.DEBUG, workdir=None):
+    def __init__(self, name, log_path=None, log_level=logging.DEBUG, workdir=None):
         self._nodes = set()
         self.name = name
         self.workdir = workdir or './'
         self._log_path = self.workdir + self.name + '.log' or log_path or main.__file__.replace('.py', '.log')
         self.name = name or _os.path.basename(main.__file__)
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
-        self.log.info("Created DAG with workdir {}".format(self.workdir))
+        self.log.info("Created DAG {} with workdir {}".format(self.name, self.workdir))
         #Create repository to track code changes
         # try:
         #     repo_path = _os.mkdir(self.workdir + 'tracking')
@@ -259,16 +259,10 @@ class Multigraph(Graph):
         loop = asyncio.get_event_loop()
         self.loop = loop
         self.log.info('DAG {}: Starting DAG'.format(self.name))
-        # The producers are all the nodes that have no inputs
-        producers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in == 0])
-        self.log.info('DAG {}: Producers are {}'.format(self.name, producers))
-        # Consumers are scheluded
-        consumers = asyncio.gather(*[asyncio.ensure_future(node()) for node in self.iternodes() if node.n_in > 0])
-        self.log.info('DAG {}: Consumers are {}'.format(self.name, consumers))
-        self.log.debug('DAG {}: Running Tasks'.format(self.name))
+        # self.log.debug('DAG {}: has following nodes {}'.format(self.name, self.iternodes()))
         try:
-            [loop.create_task(node() for node in self.iternodes())]
-            loop.run_forever()
+            tasks = [asyncio.ensure_future(node()) for node in self.iternodes()]
+            loop.run_until_complete(asyncio.gather(*tasks))
             # pending = asyncio.Task.all_tasks()
             # print(pending)
             # loop.run_until_complete(asyncio.gather(*pending))
