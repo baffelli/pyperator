@@ -7,7 +7,7 @@ from collections import namedtuple as nt
 import pyperator.exceptions
 from pyperator.IP import InformationPacket, EndOfStream
 from pyperator.exceptions import PortNotExistingError, PortDisconnectedError, OutputOnlyError, InputOnlyError, \
-    PortClosedError, PortAlreadyConnectedError
+    PortClosedError, PortAlreadyConnectedError, PortAlreadyExistingError
 
 # Constraint for regex (from snakemake)
 regex_wildcards = _re.compile(
@@ -304,10 +304,16 @@ class PortRegister:
         self.add_as(port, port.name)
 
     def add_as(self, port, name):
-        try:
-            port.component = self.component
-        except AttributeError:
-            raise PortNotExistingError(self.component, port)
+        if port.component:
+            raise PortAlreadyExistingError(self.component, port)
+        else:
+            try:
+                port.component = self.component
+            except AttributeError:
+                raise PortNotExistingError(self.component, port)
+            self.ports.update({name: port})
+
+    def export(self, port, name):
         self.ports.update({name: port})
 
     def __getitem__(self, item):

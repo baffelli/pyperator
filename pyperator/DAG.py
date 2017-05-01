@@ -124,6 +124,7 @@ class Multigraph(nodes.Component):
     """
 
     def __init__(self, name, log=None, log_level=logging.DEBUG, workdir=None):
+        super(Multigraph, self).__init__(name)
         self._nodes = set()
         self.name = name
         self.workdir = workdir or './'
@@ -132,9 +133,15 @@ class Multigraph(nodes.Component):
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
         self.log.info("Created DAG {} with workdir {}".format(self.name, self.workdir))
 <<<<<<< HEAD
+<<<<<<< HEAD
 
         #Create repository to track code changes
 =======
+=======
+        #Add input and output port register to DAG
+
+
+>>>>>>> subgraph
         # Create repository to track code changes
 >>>>>>> global-in-module
         # try:
@@ -251,13 +258,15 @@ class Multigraph(nodes.Component):
         pass
 
     def iternodes(self):
-        return self._nodes.__iter__()
+        for node in self._nodes:
+            yield from node.iternodes()
 
     def iterarcs(self):
         for source in self.iternodes():
             for name, port in source.outputs.items():
                 for dest in port.iterends():
                     yield (port, dest)
+
 
     def adjacent(self, node):
         if node in self._arcs:
@@ -281,6 +290,15 @@ class Multigraph(nodes.Component):
         arc_str = ("{} -> {}".format(s.gv_string(), v.gv_string()) for s, v in self.iterarcs())
         out_str = "\n".join(arc_str)
         return out_str
+
+    def gv_node(self):
+        st = """subgraph cluster_{name} {{
+                    {dot}  
+                    color=blue;
+                    label={lab};
+                        }}""".format(c=self.color, name=id(self), lab=self.name, dot=self.graph_dot_table())
+        return st
+
 
     def graph_dot_table(self):
         # List of nodes
