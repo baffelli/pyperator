@@ -151,6 +151,19 @@ class Component(AbstractComponent):
     def iternodes(self):
         yield self
 
+
+    def check_dangling_ports(self):
+        """
+        This component check if any port
+        in the component marked as 'mandatory' has been left unconnected
+        :return: 
+        """
+        disconn_lambda = lambda register: [p for name,p in register.items() if not p.is_connected]
+        disconnected_inputs = disconn_lambda(self.inputs)
+        disconnected_outputs = disconn_lambda(self.outputs)
+        return disconnected_inputs, disconnected_outputs
+
+
     @property
     def n_in(self):
         return len(self.inputs)
