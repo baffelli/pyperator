@@ -5,66 +5,6 @@ import shutil
 import textwrap as _tw
 
 import __main__ as main
-<<<<<<< HEAD
-
-from . import exceptions
-from . import logging as _log
-
-from abc import ABCMeta, abstractmethod
-
-import shutil
-
-from . import utils
-
-
-import git
-
-_global_dag = None
-
-
-
-
-class Graph(metaclass=ABCMeta):
-    """
-    This is the abstract graph from which the different types of graphs
-    used by pyperator are derived
-    """
-
-    @abstractmethod
-    def iternodes(self):
-        """
-        This methods is a generator
-        that yields all the nodes in the graph
-        
-        :return: 
-        A generator objects iterating over the nodes
-        """
-        pass
-
-    @abstractmethod
-    def iterarcs(self):
-        """
-        Generator that yields all arcs in the graph
-        
-        :return: 
-        A generator object that yields pairs of `(source, dest)`
-        """
-        pass
-
-    @abstractmethod
-    async def __call__(self):
-        pass
-
-
-class BipartiteGraph(Graph):
-    pass
-
-
-
-
-
-class Multigraph(Graph):
-=======
 from pyperator import context
 from pyperator import nodes
 
@@ -112,7 +52,6 @@ from pyperator import logging as _log
 
 
 class Multigraph(nodes.Component):
->>>>>>> global-in-module
     """
     This is a Multigraph, used to represent a FBP-style network.
     In this cases, components are of type :class:`pyperator.nodes.AbstractComponent`. This
@@ -132,18 +71,10 @@ class Multigraph(nodes.Component):
         self.name = name or _os.path.basename(main.__file__)
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
         self.log.info("Created DAG {} with workdir {}".format(self.name, self.workdir))
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-        #Create repository to track code changes
-=======
-=======
         #Add input and output port register to DAG
 
 
->>>>>>> subgraph
         # Create repository to track code changes
->>>>>>> global-in-module
         # try:
         #     repo_path = _os.mkdir(self.workdir + 'tracking')
         # except FileExistsError:
@@ -155,14 +86,6 @@ class Multigraph(nodes.Component):
         #     raise(e)
         # #Write the code in the temporary dir for tracking
 
-<<<<<<< HEAD
-
-
-
-
-
-=======
->>>>>>> global-in-module
     @property
     def tracking_path(self):
         return _os.path.join(self.tracking_dir.working_dir, self.name + '.py')
