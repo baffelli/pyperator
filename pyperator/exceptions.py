@@ -4,13 +4,13 @@ class ComponentError(BaseException):
             new_message = "Component {}: {}".format(component, message)
         except:
             new_message = 'fail'
-        super(ComponentError, self).__init__(message)
+        super(ComponentError, self).__init__(new_message)
 
 
 class PortError(Exception):
     def __init__(self, message, channel, *args):
         try:
-            new_message = "Component {component}: Port {message=name} {}".format(component=channel.component, name=channel.name, message=message)
+            new_message = "Component {component}: Port {name} {}".format(component=channel.component, name=channel.name, message=message)
         except:
             new_message = 'fail'
         super(PortError, self).__init__()
@@ -30,6 +30,10 @@ class PortAlreadyConnectedError(PortError):
     def __init__(self, channel, other_channel, *args):
         super(PortAlreadyConnectedError, self).__init__("is already connected to {}".format(other_channel), channel)
 
+
+class PortAlreadyExistingError(PortError):
+    def __init__(self, channel, other_channel, *args):
+        super(PortAlreadyExistingError, self).__init__("already exists".format(other_channel), channel)
 
 class PortDisconnectedError(PortError):
     def __init__(self, channel, *args):
