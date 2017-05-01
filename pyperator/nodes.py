@@ -1,11 +1,10 @@
 import asyncio
 from abc import ABCMeta, abstractmethod
 
-from . import IP
-from .utils import PortRegister, FilePort
-from . import DAG
+from pyperator import IP
+from pyperator import context
+from pyperator.utils import PortRegister, FilePort
 
-import itertools as _iter
 
 class AbstractComponent(metaclass=ABCMeta):
     """
@@ -18,7 +17,6 @@ class AbstractComponent(metaclass=ABCMeta):
 
 
 class Component(AbstractComponent):
-
     def __init__(self, name):
         self.name = name
         # Input and output ports
@@ -27,11 +25,11 @@ class Component(AbstractComponent):
         # Color of the node
         self.color = 'grey'
         self._log = None
-        #This is an horrible
-        #way to ad a component to
-        #the global dag defined whitin
-        #a context manager
-        self.dag = DAG._global_dag or None
+        # This is an horrible
+        # way to ad a component to
+        # the global dag defined whitin
+        # a context manager
+        self.dag = context._global_dag or None
         if self.dag:
             self.dag.add_node(self)
 
@@ -45,7 +43,6 @@ class Component(AbstractComponent):
 
     def type_str(self):
         return type(self).__name__
-
 
     def port_table(self):
 
@@ -61,9 +58,8 @@ class Component(AbstractComponent):
 
         def format_ports(ports, total_ports):
             return "".join(
-                port_element(id=id(port), portname=port.name, portcolor=map_type(port), colspan=colspan(len(ports), len(total_ports))) for port in ports)
-
-
+                port_element(id=id(port), portname=port.name, portcolor=map_type(port),
+                             colspan=colspan(len(ports), len(total_ports))) for port in ports)
 
         row_template = "<TR>{ports}</TR>"
 
@@ -80,7 +76,8 @@ class Component(AbstractComponent):
                         {outrow}
                 </TABLE>>"""
 
-        return table_template.format(color=self.color, comp_name=self.name, type_str=self.type_str(), inports=inports, outports=outports,
+        return table_template.format(color=self.color, comp_name=self.name, type_str=self.type_str(), inports=inports,
+                                     outports=outports,
                                      inrow=inrow,
                                      outrow=outrow, colspan=(self.n_in + self.n_out))
 
@@ -116,13 +113,11 @@ class Component(AbstractComponent):
         futures = self.outputs.send_packets(packets)
         return futures
 
-
     async def active(self):
         self.color = 'green'
 
     async def inactive(self):
         self.color = 'grey'
-
 
     def __lshift__(self, port):
         """
@@ -146,9 +141,6 @@ class Component(AbstractComponent):
         self.outputs.add(port)
         return self
 
-
-
-
     async def __call__(self):
         pass
 
@@ -163,5 +155,3 @@ class Component(AbstractComponent):
     @property
     def successors(self):
         yield from (port._connection.dest for port_name, port in self._outports.items())
-
-

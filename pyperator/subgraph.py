@@ -1,19 +1,20 @@
-from . import DAG
-from . import utils
-from . import nodes
 import asyncio
 
-from . utils import log_schedule
+from pyperator import DAG
+from pyperator import context
+from pyperator import nodes
+from pyperator import utils
+from pyperator.utils import log_schedule
+
 
 class Subgraph(nodes.Component):
-
     def __init__(self, name, **kwargs):
         super(Subgraph, self).__init__(name)
         self.inputs = utils.PortRegister(self)
         self.outputs = utils.PortRegister(self)
-        self.color ='grey'
+        self.color = 'grey'
         self.graph = DAG.Multigraph(name, **kwargs)
-        self.dag = DAG._global_dag or None
+        self.dag = context._global_dag or None
         if self.dag:
             print('here')
             self.dag.add_node(self)
@@ -24,7 +25,6 @@ class Subgraph(nodes.Component):
         sub.name = name
         sub.graph = graph
         return sub
-
 
     def export_input(self, port, name):
         for node in self.graph.iternodes():
@@ -37,8 +37,6 @@ class Subgraph(nodes.Component):
                 self.outputs.add_as(port, name)
                 return
 
-
-
     def __enter__(self):
         self.graph.__enter__()
 
@@ -49,8 +47,6 @@ class Subgraph(nodes.Component):
     def log(self):
         if self.dag:
             return self.dag.log
-
-
 
     def gv_node(self):
         st = """subgraph cluster_{name} {{
@@ -63,9 +59,7 @@ class Subgraph(nodes.Component):
     @log_schedule
     async def __call__(self):
         if self.dag:
-            self.log.info("Component {} is a subgraph: Adding all nodes to the executor of {}".format(self.name, self.dag.name))
+            self.log.info(
+                "Component {} is a subgraph: Adding all nodes to the executor of {}".format(self.name, self.dag.name))
             asyncio.ensure_future(asyncio.gather(*[node() for node in self.graph.iternodes()]), loop=self.dag.loop)
         return
-
-
-
