@@ -158,9 +158,8 @@ class Component(AbstractComponent):
         in the component marked as 'mandatory' has been left unconnected
         :return: 
         """
-        disconn_lambda = lambda register: [p for name,p in register.items() if not p.is_connected]
-        disconnected_inputs = disconn_lambda(self.inputs)
-        disconnected_outputs = disconn_lambda(self.outputs)
+        disconnected_inputs = list(self.inputs.iter_disconnected(self.inputs))
+        disconnected_outputs = list(self.inputs.iter_disconnected(self.outputs))
         return disconnected_inputs, disconnected_outputs
 
 

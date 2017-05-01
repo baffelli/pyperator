@@ -101,7 +101,7 @@ class Port:
     .. _noflo: https://github.com/noflo/noflo/issues/90
     """
 
-    def __init__(self, name, size=-1, component=None):
+    def __init__(self, name, size=-1, component=None, mandatory=False):
         self.name = name
         self.size = size
         self.component = component
@@ -109,6 +109,9 @@ class Port:
         self.queue = asyncio.Queue(maxsize=size)
         self.open = True
         self._iip = False
+        #if set to true, the port must be connected
+        #before the component can be used
+        self.mandatory=mandatory
 
     def set_initial_packet(self, value):
         # self.component._log.debug("Set initial information packet for {} at port {}".format(self.name, self.component))
@@ -384,3 +387,9 @@ class PortRegister:
             packet = packets.get(p_name)
             futures.append(asyncio.ensure_future(p.send_packet(packet)))
         return futures
+
+    def iter_disconnected(self):
+        for name, p in self.items():
+            if not p.is_connected:
+                yield (name, p)
+
