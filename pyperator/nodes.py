@@ -15,6 +15,10 @@ class AbstractComponent(metaclass=ABCMeta):
     def __call__(self):
         pass
 
+    @abstractmethod
+    def iternodes(self):
+        yield self
+
 
 class Component(AbstractComponent):
     def __init__(self, name):
@@ -143,6 +147,9 @@ class Component(AbstractComponent):
 
     async def __call__(self):
         pass
+
+    def iternodes(self):
+        yield self
 
     @property
     def n_in(self):
