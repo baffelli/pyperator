@@ -20,7 +20,6 @@ import git
 _global_dag = None
 
 
-from bokeh.server.server import Server
 
 
 class Graph(metaclass=ABCMeta):
@@ -81,6 +80,7 @@ class Multigraph(Graph):
         self.name = name or _os.path.basename(main.__file__)
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
         self.log.info("Created DAG {} with workdir {}".format(self.name, self.workdir))
+
         #Create repository to track code changes
         # try:
         #     repo_path = _os.mkdir(self.workdir + 'tracking')
@@ -92,6 +92,8 @@ class Multigraph(Graph):
         # except Exception as e:
         #     raise(e)
         # #Write the code in the temporary dir for tracking
+
+
 
 
 
