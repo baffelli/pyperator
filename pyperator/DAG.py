@@ -1,9 +1,11 @@
 import asyncio
 import logging
 import os as _os
+import shutil
 import textwrap as _tw
 
 import __main__ as main
+<<<<<<< HEAD
 
 from . import exceptions
 from . import logging as _log
@@ -62,6 +64,55 @@ class BipartiteGraph(Graph):
 
 
 class Multigraph(Graph):
+=======
+from pyperator import context
+from pyperator import nodes
+
+from pyperator import exceptions
+from pyperator import logging as _log
+
+
+# class Graph(metaclass=ABCMeta):
+#     """
+#     This is the abstract graph from which the different types of graphs
+#     used by pyperator are derived
+#     """
+#
+#     @abstractmethod
+#     def iternodes(self):
+#         """
+#         This methods is a generator
+#         that yields all the nodes in the graph
+#
+#         :return:
+#         A generator objects iterating over the nodes
+#         """
+#         pass
+#
+#     @abstractmethod
+#     def iterarcs(self):
+#         """
+#         Generator that yields all arcs in the graph
+#
+#         :return:
+#         A generator object that yields pairs of `(source, dest)`
+#         """
+#         pass
+#
+#     @abstractmethod
+#     async def __call__(self):
+#         pass
+#
+#
+# class BipartiteGraph(Graph):
+#     pass
+
+
+
+
+
+class Multigraph(nodes.Component):
+>>>>>>> global-in-module
     """
     This is a Multigraph, used to represent a FBP-style network.
     In this cases, components are of type :class:`pyperator.nodes.AbstractComponent`. This
@@ -80,8 +131,12 @@ class Multigraph(Graph):
         self.name = name or _os.path.basename(main.__file__)
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
         self.log.info("Created DAG {} with workdir {}".format(self.name, self.workdir))
+<<<<<<< HEAD
 
         #Create repository to track code changes
+=======
+        # Create repository to track code changes
+>>>>>>> global-in-module
         # try:
         #     repo_path = _os.mkdir(self.workdir + 'tracking')
         # except FileExistsError:
@@ -93,37 +148,38 @@ class Multigraph(Graph):
         #     raise(e)
         # #Write the code in the temporary dir for tracking
 
+<<<<<<< HEAD
 
 
 
 
 
+=======
+>>>>>>> global-in-module
     @property
     def tracking_path(self):
         return _os.path.join(self.tracking_dir.working_dir, self.name + '.py')
-
 
     @property
     def base_commit_message(self):
         return "DAG {}:".format(self.name)
 
-
     def new_file(self, file):
-       return file in self.tracking_dir.index.diff(None, name_only=True).iter_change_type('A')
+        return file in self.tracking_dir.index.diff(None, name_only=True).iter_change_type('A')
 
     def code_change(self, file):
-        return file in self.tracking_dir.index.diff(None,name_only=True)
+        return file in self.tracking_dir.index.diff(None, name_only=True)
 
     def commit_code(self, message):
         self.commit_external(main.__file__, message)
-
 
     def commit_external(self, file, message):
         file = _os.path.basename(shutil.copy(file, self.tracking_dir.working_dir))
         if self.code_change(file):
             commit_message = self.base_commit_message + message + ", file {} added because code changed".format(file)
         elif file in self.tracking_dir.untracked_files:
-            commit_message = self.base_commit_message + message + "  files {} added because the file is new".format(file)
+            commit_message = self.base_commit_message + message + "  files {} added because the file is new".format(
+                file)
         else:
             commit_message = None
         if commit_message:
@@ -141,7 +197,6 @@ class Multigraph(Graph):
     @workdir.setter
     def workdir(self, dir):
         self._workdir = dir
-
 
     @property
     def log(self):
@@ -210,27 +265,29 @@ class Multigraph(Graph):
         else:
             return
 
+    # Context manager
     def __enter__(self):
         global _global_dag
-        self._old_dag = _global_dag
-        _global_dag = self
+        self._old_dag = context._global_dag
+        context._global_dag = self
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        global _global_dag
-        _global_dag = self._old_dag
+        context._global_dag = self._old_dag
+
+    # /Context manager
 
     def __repr__(self):
-        arc_str = ("{} -> {}".format(s.gv_string(), v.gv_string()) for s,v in self.iterarcs())
+        arc_str = ("{} -> {}".format(s.gv_string(), v.gv_string()) for s, v in self.iterarcs())
         out_str = "\n".join(arc_str)
         return out_str
-
 
     def graph_dot_table(self):
         # List of nodes
         nodes_gen = (node.gv_node() for node in self.iternodes())
         # List of arcs
-        arc_str = ("{} -> {} [arrowType=normal]".format(k.gv_string(), v.gv_string(), v.size) for k, v in self.iterarcs())
+        arc_str = ("{} -> {} [arrowType=normal]".format(k.gv_string(), v.gv_string(), v.size) for k, v in
+                   self.iterarcs())
         # IIPs as additional nodes
         iip_nodes = "\n".join(
             ["\n".join(
@@ -257,7 +314,7 @@ class Multigraph(Graph):
         return _tw.dedent(graph_str)
 
     def __call__(self):
-        #Add code to the repository
+        # Add code to the repository
         # self.commit_code('Commiting code before running DAG'.format(self.name))
         loop = asyncio.get_event_loop()
         self.loop = loop

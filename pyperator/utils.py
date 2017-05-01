@@ -1,17 +1,13 @@
 import asyncio
+import logging
 import re as _re
 from collections import OrderedDict as _od
 from collections import namedtuple as nt
 
 import pyperator.exceptions
+from pyperator.IP import InformationPacket, EndOfStream
 from pyperator.exceptions import PortNotExistingError, PortDisconnectedError, OutputOnlyError, InputOnlyError, \
-    MultipleConnectionError, PortClosedError, PortAlreadyConnectedError
-from . import IP
-from .IP import InformationPacket, EndOfStream
-
-
-
-import logging
+    PortClosedError, PortAlreadyConnectedError
 
 # Constraint for regex (from snakemake)
 regex_wildcards = _re.compile(
@@ -104,6 +100,7 @@ class Port:
     
     .. _noflo: https://github.com/noflo/noflo/issues/90
     """
+
     def __init__(self, name, size=-1, component=None):
         self.name = name
         self.size = size
@@ -147,7 +144,6 @@ class Port:
         """
         self.connect(other)
 
-
     def connect(self, other_port):
         if other_port not in self.other:
             self.other.append(other_port)
@@ -167,7 +163,7 @@ class Port:
             else:
                 error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
                     self.component, str(packet), self.name)
-                e =  pyperator.exceptions.PacketOwnedError(error_message)
+                e = pyperator.exceptions.PacketOwnedError(error_message)
                 self.component._log.ex(e)
                 raise e
         else:
@@ -179,7 +175,6 @@ class Port:
     async def send(self, data):
         packet = InformationPacket(data, owner=self.component)
         await self.send_packet(packet)
-
 
     async def receive_packet(self):
         if self.is_connected:
@@ -205,7 +200,6 @@ class Port:
         else:
             raise PortDisconnectedError
 
-
     def __aiter__(self):
         return self
 
@@ -228,7 +222,6 @@ class Port:
         await self.send_packet(packet)
         self.open = False
         self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
-
 
     @property
     def path(self):
@@ -255,8 +248,8 @@ class Port:
 
     def gv_conn(self):
         if self.other:
-            return "\n".join(["{self} -> {ohter}".format(self=self.gv_string(), ohter=other.gv_string()) for other in self.other])
-
+            return "\n".join(
+                ["{self} -> {ohter}".format(self=self.gv_string(), ohter=other.gv_string()) for other in self.other])
 
 
 class FilePort(Port):
@@ -271,7 +264,6 @@ class FilePort(Port):
 
 
 class OutputPort(Port):
-
     def __init__(self, *args, **kwargs):
         super(OutputPort, self).__init__(*args, **kwargs)
 
@@ -286,7 +278,6 @@ class OutputPort(Port):
         self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
 
 
-
 class InputPort(Port):
     def __init__(self, *args, **kwargs):
         super(InputPort, self).__init__(*args, **kwargs)
@@ -297,8 +288,6 @@ class InputPort(Port):
     async def close(self):
         self._open = False
         self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
-
-
 
 
 class ArrayPort(Port):
@@ -320,7 +309,6 @@ class PortRegister:
         except AttributeError:
             raise PortNotExistingError(self.component, port)
         self.ports.update({name: port})
-
 
     def __getitem__(self, item):
         if item in self.ports:
@@ -383,7 +371,6 @@ class PortRegister:
             return packets
         except StopAsyncIteration as e:
             raise StopAsyncIteration
-
 
     def send_packets(self, packets):
         futures = []

@@ -1,12 +1,12 @@
 import asyncio
 import glob as _glob
 import itertools as _iter
-
-from . import IP
-from .nodes import Component
-from .utils import InputPort, OutputPort, log_schedule, FilePort
-
 import pathlib as _path
+
+from pyperator import IP
+from pyperator.nodes import Component
+from pyperator.utils import InputPort, OutputPort, log_schedule, FilePort
+
 
 class GeneratorSource(Component):
     """
@@ -45,7 +45,8 @@ class GlobSource(Component):
     async def __call__(self):
         pattern = await self.inputs.pattern.receive()
         files = _glob.glob(pattern)
-        start_message = "Component {}: using glob pattern {} will emit {} files: {}".format(self.name, pattern, len(files), files)
+        start_message = "Component {}: using glob pattern {} will emit {} files: {}".format(self.name, pattern,
+                                                                                            len(files), files)
         self._log.info(start_message)
         for file in files:
             p = IP.InformationPacket(_path.Path(file), owner=self)
@@ -65,23 +66,23 @@ class Product(Component):
     combinatorial function can be used to generate the packets.
     """
 
-    def __init__(self, name, fun=lambda packets:_iter.product(*packets)):
+    def __init__(self, name, fun=lambda packets: _iter.product(*packets)):
         super().__init__(name)
         self._fun = fun
         self.outputs.add(OutputPort('OUT'))
 
     @log_schedule
     async def __call__(self):
-        #Receive all packets
-        all_packets = {k:[] for k in self.inputs.keys()}
+        # Receive all packets
+        all_packets = {k: [] for k in self.inputs.keys()}
         async for packet_dict in self.inputs:
             for port, packet in packet_dict.items():
                 all_packets[port].append(packet)
         async with self.outputs.OUT:
             for it, p in enumerate(self._fun(all_packets.values())):
-                #Create substream
+                # Create substream
                 substream = [IP.OpenBracket()] + [p1.copy() for p1 in p] + [IP.CloseBracket()]
-                #Send packets in substream
+                # Send packets in substream
                 for p1 in substream:
                     await self.outputs.OUT.send_packet(p1)
                 await asyncio.sleep(0)
@@ -130,7 +131,6 @@ class ReplacePath(Component):
             await asyncio.sleep(0)
 
 
-
 class Split(Component):
     """
     This component splits the input tuple into
@@ -144,7 +144,7 @@ class Split(Component):
 
     @log_schedule
     async def __call__(self):
-        #Iterate over input stream
+        # Iterate over input stream
         async for packet in self.inputs.IN:
             if isinstance(packet, IP.OpenBracket):
                 packet.drop()
@@ -198,7 +198,6 @@ class ConstantSource(Component):
         self.outputs.add(InputPort('constant'))
         self.outputs.add(InputPort('repeat'))
 
-
     @log_schedule
     async def __call__(self):
         repeat = await self.inputs.repeat.receive()
@@ -231,9 +230,6 @@ class Repeat(Component):
         with self.outputs.OUT:
             while True:
                 self.outputs.OUT.send_packet(packet.copy())
-
-
-
 
 
 class Filter(Component):
@@ -311,6 +307,3 @@ class ShowInputs(Component):
             show_str = "Component {} saw:\n".format(self.name) + "\n".join([str(p) for p in packets.values()])
             self._log.debug(show_str)
             print(show_str)
-
-
-

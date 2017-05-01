@@ -1,4 +1,7 @@
 import asyncio
+import collections.abc as _collabc
+import hashlib as _hl
+import pathlib as _path
 import subprocess as _sub
 
 from pyperator import IP
@@ -6,15 +9,6 @@ from pyperator.exceptions import FormatterError, FileNotExistingError, CommandFa
 from pyperator.nodes import Component
 from pyperator.utils import Wildcards, log_schedule
 
-import collections.abc as _collabc
-
-import hashlib as _hl
-
-import itertools as _iter
-
-import os as _os
-
-import pathlib as _path
 
 def unique_filename(outport, inputs, wildcards):
     unique_if = ("".join([str(v.path) for p,v in inputs.items()])).encode('utf-8')
