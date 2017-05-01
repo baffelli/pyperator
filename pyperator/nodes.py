@@ -127,7 +127,7 @@ class Component(AbstractComponent):
     def __lshift__(self, port):
         """
         Adds an :class:`pyperator.utils.port` to the component inputs.
-        Equivalent to :code:`self.inputs.add(other)`
+        Equivalent to :code:`self.inputs.add(port)`
 
         :param port: :class:`pyperator.utils.port`
         :return: :class:`pyperator.nodes.Component`
@@ -135,15 +135,15 @@ class Component(AbstractComponent):
         self.inputs.add(port)
         return self
 
-    def __rshift__(self, other):
+    def __rshift__(self, port):
         """
         Adds an :class:`pyperator.utils.port` to the component outputs.
         Equivalent to :code:`self.outputs.add(port)`
 
-        :param other: :class:`pyperator.utils.port`
+        :param port: :class:`pyperator.utils.port`
         :return: :class:`pyperator.nodes.Component`
         """
-        self.outputs.add(other)
+        self.outputs.add(port)
         return self
 
 

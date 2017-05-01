@@ -371,7 +371,7 @@ class TestMultigraph(TestCase):
         toucher.DynamicFormatter('f1', "{inputs.i.value}.test")
         printer = ShowInputs('show_path')
         printer.inputs.add(FilePort('f2'))
-        graph = Multigraph(log_path='fail.log')
+        graph = Multigraph(log='fail.log')
         graph.connect(source1.outputs.OUT, toucher.inputs.i)
         graph.connect(toucher.outputs.f1, printer.inputs.f2)
         graph()
@@ -465,7 +465,9 @@ class TestMultigraph(TestCase):
 
     def testSubgraph(self):
 
-        with subgraph.Subgraph('a') as sg:
+
+        with Multigraph('sub') as sg:
+
             source1 = GeneratorSource('s1')
             source2 = GeneratorSource('s2',)
             p = components.Product('prod')
@@ -473,13 +475,12 @@ class TestMultigraph(TestCase):
             p << InputPort('IN2')
             source1.outputs.OUT >> p.inputs.IN1
             source2.outputs.OUT >> p.inputs.IN2
-            sg.export_output(p.outputs.OUT, 'OUT')
             source1.inputs.gen.set_initial_packet(range(5))
             source2.inputs.gen.set_initial_packet(range(5))
-        print(sg.dot())
+            p.outputs.OUT >> OutputPort('OUT')
 
         with Multigraph('b') as g:
-            g.add_node(sg)
+            sg = subgraph.Subgraph.from_graph('subgraph', sg)
             printer  = components.ShowInputs('show')
             printer << InputPort('IN')
             sg.outputs.OUT >> printer.inputs.IN

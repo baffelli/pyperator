@@ -19,10 +19,25 @@ class Subgraph(nodes.Component):
             self.dag.add_node(self)
 
     @classmethod
-    def fromgraph(cls, name, graph):
+    def from_graph(cls, name, graph):
         sub = Subgraph(name)
         sub.name = name
+        sub.graph = graph
         return sub
+
+
+    def export_input(self, port, name):
+        for node in self.graph.iternodes():
+            if port in node.inputs.values():
+                self.inputs.add_as(port, name)
+
+    def export_output(self, port, name):
+        for node in self.graph.iternodes():
+            if port in node.outputs.values():
+                self.outputs.add_as(port, name)
+                return
+
+
 
     def __enter__(self):
         self.graph.__enter__()
@@ -35,16 +50,7 @@ class Subgraph(nodes.Component):
         if self.dag:
             return self.dag.log
 
-    def export_input(self, port, name):
-        for node in self.graph.iternodes():
-            if port in node.inputs.values():
-                self.inputs.add_as(port, name)
 
-    def export_output(self, port, name):
-        for node in self.graph.iternodes():
-            if port in node.outputs.values():
-                self.outputs.add_as(port, name)
-                return
 
     def gv_node(self):
         st = """subgraph cluster_{name} {{
