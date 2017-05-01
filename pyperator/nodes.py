@@ -28,7 +28,6 @@ class Component(AbstractComponent):
         self.outputs = PortRegister(self)
         # Color of the node
         self.color = 'grey'
-        self._log = None
         # This is an horrible
         # way to ad a component to
         # the global dag defined whitin
@@ -47,6 +46,14 @@ class Component(AbstractComponent):
 
     def type_str(self):
         return type(self).__name__
+
+
+    @property
+    def log(self):
+        if self.dag:
+            return self.dag.log.getChild(self.name)
+        else:
+            pass
 
     def port_table(self):
 
@@ -112,7 +119,7 @@ class Component(AbstractComponent):
 
     def send_to_all(self, data):
         # Send
-        self._log.debug("Component {}: sending '{}' to all output ports".format(self.name, data))
+        self._log.debug("Sending '{}' to all output ports".format(data))
         packets = {p: IP.InformationPacket(data, owner=self) for p, v in self.outputs.items()}
         futures = self.outputs.send_packets(packets)
         return futures

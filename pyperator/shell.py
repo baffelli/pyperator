@@ -5,13 +5,14 @@ import pathlib as _path
 import subprocess as _sub
 
 from pyperator import IP
+from pyperator.decorators import log_schedule
 from pyperator.exceptions import FormatterError, FileNotExistingError, CommandFailedError
 from pyperator.nodes import Component
-from pyperator.utils import Wildcards, log_schedule
+from pyperator.utils import Wildcards
 
 
 def unique_filename(outport, inputs, wildcards):
-    unique_if = ("".join([str(v.path) for p,v in inputs.items()])).encode('utf-8')
+    unique_if = ("".join([str(v.path) for p, v in inputs.items()])).encode('utf-8')
     return str(_hl.md5(unique_if).hexdigest())
 
 
@@ -19,12 +20,9 @@ def make_call(cmd, stderr, stdout):
     proc = _sub.Popen(cmd, shell=True, stdout=stdout, stderr=stderr)
     return proc
 
-def make_async_call(cmd,stderr, stdout):
-    return asyncio.create_subprocess_shell(cmd,stdout=stdout, stderr=stderr)
 
-
-
-
+def make_async_call(cmd, stderr, stdout):
+    return asyncio.create_subprocess_shell(cmd, stdout=stdout, stderr=stderr)
 
 
 class PacketRegister(_collabc.Mapping):
@@ -36,7 +34,7 @@ class PacketRegister(_collabc.Mapping):
     """
 
     def __init__(self, packets):
-        self._packets = {k:v for k,v in packets.items()}
+        self._packets = {k: v for k, v in packets.items()}
 
     def __getitem__(self, item):
         if item in self._packets:
@@ -63,8 +61,6 @@ class PacketRegister(_collabc.Mapping):
         return self._packets.__str__()
 
 
-
-
 class FileOperator(Component):
     """
     This component operates on files, it supports
@@ -75,12 +71,12 @@ class FileOperator(Component):
     will automatically check wether the files that it produces exists, in order
     to avoid rerunning the command again.
     """
+
     def __init__(self, name):
         super(FileOperator, self).__init__(name)
         self.output_formatters = {}
         # Input ports may have wildcard expressions attached
         self.wildcard_expressions = {}
-
 
     def FixedFormatter(self, port, path):
         """
@@ -91,9 +87,10 @@ class FileOperator(Component):
 
     def DynamicFormatter(self, outport, pattern):
         self.output_formatters[outport] = lambda inputs, wildcards: pattern.format(inputs=inputs,
-                                                                                            wildcards=wildcards)
+                                                                                   wildcards=wildcards)
+
     def UniqueFormatter(self, outport):
-        formatter = lambda inputs, wildcards: unique_filename(outport,inputs, wildcards)
+        formatter = lambda inputs, wildcards: unique_filename(outport, inputs, wildcards)
         self.output_formatters[outport] = formatter
 
     def WildcardsExpression(self, inport, pattern):
@@ -111,8 +108,7 @@ class FileOperator(Component):
         for inport, inpacket in received_data.items():
             if inport in self.wildcard_expressions:
                 wildcards_dict[inport] = self.wildcard_expressions[inport].parse(inpacket)
-                self._log.debug(
-                    'Component {}: Port {}, with wildcard pattern {}, wildcards are {}'.format(self.name, inport,
+                self.log.debug("Port {}, with wildcard pattern {}, wildcards are {}".format(inport,
                                                                                                self.wildcard_expressions[
                                                                                                    inport].pattern,
                                                                                                wildcards_dict[inport]))
@@ -135,12 +131,13 @@ class FileOperator(Component):
                     out_paths[out] = self.dag.workdir + self.output_formatters[out](inputs, wildcards)
                 except KeyError:
                     out_paths[out] = self.UniqueFormatter(out)(inputs, wildcards)
-                    self._log.info("Component {}: Output port {} has no output formatter specified, will form an unique ID based on inputs".format(self.name, out_port, out_paths[out]))
-                self._log.debug(
-                    "Component {}: Output port {} will send file '{}'".format(self.name, out_port, out_paths[out]))
+                    self.log.info(
+                        "Output port {} has no output formatter specified, will form an unique ID based on inputs".format(out_port, out_paths[out]))
+                self.log.debug(
+                    "Output port {} will send file '{}'".format(out_port, out_paths[out]))
             except NameError as e:
-                ex_text = 'Component {}: Port {} does not have a path formatter specified'.format(self.name, out)
-                self._log.error(ex_text)
+                ex_text = 'Port {} does not have a path formatter specified'.format( out)
+                self.log.error(ex_text)
                 raise FormatterError(ex_text)
             except Exception as e:
                 raise e
@@ -149,7 +146,7 @@ class FileOperator(Component):
     def generate_packets(self, out_paths):
         out_packets = {}
         for port, path in out_paths.items():
-            out_packets[port] = IP.InformationPacket(_path.Path(path),owner=None)
+            out_packets[port] = IP.InformationPacket(_path.Path(path), owner=None)
         return PacketRegister(out_packets)
 
     # def enumerate_newer(self, input_packets, output_packet):
@@ -161,11 +158,8 @@ class FileOperator(Component):
     def enumerate_missing(self, out_packets):
         return {port: packet for port, packet in out_packets.items() if not packet.exists()}
 
-
     def produce_outputs(self, input_packets, output_packets, wildcards):
         pass
-
-
 
     @log_schedule
     async def __call__(self):
@@ -178,33 +172,28 @@ class FileOperator(Component):
             # Check for missing packet
             missing = self.enumerate_missing(out_packets)
             if missing:
-                self._log.info(
-                    "Component {}: Output files '{}' do not exist not exist, command will be run".format(self.name,
-                                                                                                         [
-                                                                                                             packet
-                                                                                                             for
-                                                                                                             packet
-                                                                                                             in
-                                                                                                             missing.values()]))
+                self.log.info("Output files '{}' do not exist not exist, command will be run".format(
+                    [
+                        packet
+                        for
+                        packet
+                        in
+                        missing.values()]))
                 inputs_obj = PacketRegister(received_packets)
                 # Produce the outputs
                 new_out = await self.produce_outputs(inputs_obj, out_packets, wildcards)
                 # Check if the output files exist
                 missing_after = self.enumerate_missing(new_out)
                 if missing_after:
-                    missing_err = "Component {name}: Following files are missing {}, check the command".format(
-                        self.name, [packet.path for packet in missing_after.values()])
-
-                    self._log.error(missing_err)
+                    missing_err = "Following files are missing {}, check the command".format(
+                        [packet for packet in missing_after.values()])
+                    self.log.error(missing_err)
                     raise FileNotExistingError(missing_err)
             else:
-                self._log.debug(
-                    "Component {}: All output files exist, command will not be run".format(self.name))
+                self.log.debug("All output files exist, command will not be run")
                 new_out = out_packets
             await asyncio.wait(self.send_packets(new_out.as_dict()))
             await asyncio.sleep(0)
-
-
 
 
 class Shell(FileOperator):
@@ -223,7 +212,7 @@ class Shell(FileOperator):
 
     async def produce_outputs(self, input_packets, output_packets, wildcards):
         formatted_cmd = self.cmd.format(inputs=input_packets, outputs=output_packets, wildcards=wildcards)
-        self._log.info("Executing command {}".format(formatted_cmd))
+        self.log.info("Executing command {}".format(formatted_cmd))
         # Define stdout and stderr pipes
         stdout = asyncio.subprocess.PIPE
         stderr = asyncio.subprocess.PIPE
@@ -232,11 +221,11 @@ class Shell(FileOperator):
         if proc.returncode != 0:
             fail_str = "running command '{}' failed with output: \n {}".format(formatted_cmd, stderr.strip())
             e = CommandFailedError(self, fail_str)
-            self._log.error(e)
+            self.log.error(e)
             raise e
         else:
-            success_str = "Component {}: command successfully run, with output: {}".format(self.name, stdout)
-            self._log.info(success_str)
+            success_str = "Command successfully run, with output: {}".format(self.name, stdout)
+            self.log.info(success_str)
             return output_packets
 
 
@@ -249,12 +238,8 @@ class ShellScript(Shell):
     def __init__(self, name, script):
         super(ShellScript, self).__init__(name, None)
         self.script = script
-        self._log.info("Component {} initialized to run script {}".format(self.name, self.script))
+        self.log.info("Initialized to run script {}".format(self.name, self.script))
         # self.dag.commit_external(self.script, "Component {} uses script {}".format(self.name, self.script) )
-
-
-
-
 
     async def produce_outputs(self, input_packets, output_packets, wildcards):
         with open(self.script) as input_script:
@@ -262,7 +247,7 @@ class ShellScript(Shell):
                                                        outputs=output_packets, wildcards=wildcards)
             print(formatted_cmd)
 
-        self._log.info("Executing command {}".format(self.script))
+        self.log.info("Executing command {}".format(self.script))
         # Define stdout and stderr pipes
         stdout = asyncio.subprocess.PIPE
         stderr = asyncio.subprocess.PIPE
@@ -271,9 +256,9 @@ class ShellScript(Shell):
         if proc.returncode != 0:
             fail_str = "running command '{}' failed with output: \n {}".format(formatted_cmd, stderr.strip())
             e = CommandFailedError(self, fail_str)
-            self._log.error(e)
+            self.log.error(e)
             raise e
         else:
-            success_str = "Component {}: command successfully run, with output: {}".format(self.name, stdout)
-            self._log.info(success_str)
+            success_str = "Command successfully run, with output: {}".format(self.name, stdout)
+            self.log.info(success_str)
             return output_packets

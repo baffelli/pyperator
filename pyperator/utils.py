@@ -68,17 +68,6 @@ class Default(dict):
         return key
 
 
-def log_schedule(method):
-    def inner(instance):
-        try:
-            instance._log.info('Component {}: Scheduled'.format(instance.name))
-        except AttributeError:
-            pass
-        return method(instance)
-
-    return inner
-
-
 class Port:
     """
     This is a regular Port component, that can be connected to another port
@@ -113,15 +102,21 @@ class Port:
         #before the component can be used
         self.mandatory=mandatory
 
+
+    @property
+    def log(self):
+        if self.component:
+            return self.component.log.getChild(self.name)
+
+
     def set_initial_packet(self, value):
-        # self.component._log.debug("Set initial information packet for {} at port {}".format(self.name, self.component))
         packet = InformationPacket(value, owner=self.component)
         self._iip = packet
 
     def kickstart(self):
         packet = InformationPacket(None)
         self.queue.put_nowait(packet)
-        self.component._log.debug('Component {}: Kickstarting port {}'.format(self.component, self.name))
+        self.log.debug('Kickstarting port {}'.format(self.component, self.name))
 
     async def receive(self):
         packet = await self.receive_packet()
@@ -158,21 +153,20 @@ class Port:
             if packet.owner == self.component or packet.owner == None:
                 for other in self.other:
                     if other.open:
-                        self.component._log.debug(
-                            "Component {}: sending {} to {}".format(self.component, str(packet), self.name))
+                        self.log.debug(
+                            "Sending {} to {}".format(str(packet), self.name))
                         await other.queue.put(packet)
                     else:
                         raise PortClosedError()
             else:
-                error_message = "Component {}: packets {} is not owned by this component, copy it first".format(
-                    self.component, str(packet), self.name)
+                error_message = "Packet {} is not owned by this component, copy it first".format(str(packet), self.name)
                 e = pyperator.exceptions.PacketOwnedError(error_message)
-                self.component._log.ex(e)
+                self.log.ex(e)
                 raise e
         else:
             ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
             packet.drop()
-            logging.getLogger('root').error(ex_str)
+            self.log.error(ex_str)
             # raise PortDisconnectedError()
 
     async def send(self, data):
@@ -182,19 +176,19 @@ class Port:
     async def receive_packet(self):
         if self.is_connected:
             if self.open:
-                self.component._log.debug("Component {}: receiving at {}".format(self.component, self.name))
+                self.log.debug("Receiving at {}".format(self.name))
                 if not self._iip:
                     packet = await self.queue.get()
                     self.queue.task_done()
                 else:
                     packet = self._iip
-                    self.component._log.debug("Component {}: receiving IIP at {}".format(self.component, self.name))
+                    self.log.debug("Receiving IIP at {}".format(self.name))
                     # self.open = False
-                logging.getLogger('root').debug(
-                    "Component {}: received {} from {}".format(self.component, packet, self.name))
+                self.log.debug(
+                    "Received {} from {}".format(packet, self.name))
                 if packet.is_eos and self.queue.empty():
-                    stop_message = "Component {}: stopping because {} was received".format(self.component, packet)
-                    self.component._log.info(stop_message)
+                    stop_message = "Stopping because {} was received".format(packet)
+                    self.log.info(stop_message)
                     raise StopAsyncIteration(stop_message)
                 else:
                     return packet
@@ -224,7 +218,7 @@ class Port:
         packet.owner = self.component
         await self.send_packet(packet)
         self.open = False
-        self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
+        self.log.debug("Closing {}".format(self.name))
 
     @property
     def path(self):
@@ -278,7 +272,7 @@ class OutputPort(Port):
         packet.owner = self.component
         await self.send_packet(packet)
         self._open = False
-        self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
+        self.log.debug("Closing {}".format(self.name))
 
 
 class InputPort(Port):
@@ -290,7 +284,7 @@ class InputPort(Port):
 
     async def close(self):
         self._open = False
-        self.component._log.debug("Component {}: closing {}".format(self.component, self.name))
+        self.log.debug("closing {}".format(self.name))
 
 
 class ArrayPort(Port):

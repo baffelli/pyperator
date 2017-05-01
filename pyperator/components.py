@@ -5,7 +5,8 @@ import pathlib as _path
 
 from pyperator import IP
 from pyperator.nodes import Component
-from pyperator.utils import InputPort, OutputPort, log_schedule, FilePort
+from pyperator.utils import InputPort, OutputPort, FilePort
+from pyperator.decorators import log_schedule
 
 
 class GeneratorSource(Component):
@@ -45,14 +46,13 @@ class GlobSource(Component):
     async def __call__(self):
         pattern = await self.inputs.pattern.receive()
         files = _glob.glob(pattern)
-        start_message = "Component {}: using glob pattern {} will emit {} files: {}".format(self.name, pattern,
-                                                                                            len(files), files)
-        self._log.info(start_message)
+        start_message = "using glob pattern {} will emit {} files: {}".format(pattern, len(files), files)
+        self.log.info(start_message)
         for file in files:
             p = IP.InformationPacket(_path.Path(file), owner=self)
             await self.outputs.OUT.send_packet(p)
             await asyncio.sleep(0)
-        stop_message = "Component {}: exahusted list of files".format(self.name)
+        stop_message = "exahusted list of files"
         self._log.info(stop_message)
         await self.close_downstream()
 
@@ -152,7 +152,7 @@ class Split(Component):
             elif isinstance(packet, IP.CloseBracket):
                 packet.drop()
                 self._log.debug(
-                    "Component {}: Splitting '{}'".format(self.name, data))
+                    "Splitting '{}'".format(data))
                 for (output_port_name, output_port), out_packet in zip(self.outputs.items(), data):
                     await output_port.send_packet(out_packet.copy())
             else:
