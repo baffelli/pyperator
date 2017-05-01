@@ -3,6 +3,10 @@ import collections.abc as _collabc
 import hashlib as _hl
 import pathlib as _path
 import subprocess as _sub
+import tempfile as _temp
+import os
+import shutil
+
 
 from pyperator import IP
 from pyperator.decorators import log_schedule
@@ -25,6 +29,8 @@ def make_async_call(cmd, stderr, stdout):
     return asyncio.create_subprocess_shell(cmd, stdout=stdout, stderr=stderr)
 
 
+
+
 class PacketRegister(_collabc.Mapping):
     """
     This class is used to represent a collection of
@@ -35,6 +41,35 @@ class PacketRegister(_collabc.Mapping):
 
     def __init__(self, packets):
         self._packets = {k: v for k, v in packets.items()}
+        self._temp_packets = {}
+
+
+    def copy_temp(self):
+        """
+        Create a temporary copy of
+        each input and output
+        packet and returns a copied :class:`PacketRegister`.
+        Each packet that behaves in a "path-like"
+        manner will receive a new tempfile attached.
+        
+        :return: 
+        """
+        #Create temporary file
+        paths = {}
+        for k, v in self._packets.items():
+            paths[k] = IP.InformationPacket(_path.Path(_temp.NamedTemporaryFile().name))
+        self._temp_packets= PacketRegister(paths)
+        return self._temp_packets
+
+
+    def finalize_temp(self):
+        for (k_temp, v_temp),(k_final,v_final) in zip(self._temp_packets.items(),self.items()):
+            if not os.path.exists(str(v_temp)):
+                print(v_temp, v_final)
+                shutil.copy(v_temp, v_final)
+
+
+
 
     def __getitem__(self, item):
         if item in self._packets:
@@ -59,6 +94,16 @@ class PacketRegister(_collabc.Mapping):
 
     def __str__(self):
         return self._packets.__str__()
+
+    #Context manager: creates temporary files
+    def __enter__(self):
+        return self.copy_temp()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.finalize_temp()
+
+
+
 
 
 class FileOperator(Component):
@@ -181,9 +226,10 @@ class FileOperator(Component):
                         missing.values()]))
                 inputs_obj = PacketRegister(received_packets)
                 # Produce the outputs
-                new_out = await self.produce_outputs(inputs_obj, out_packets, wildcards)
+                with out_packets.copy_temp() as new_out:
+                    new_out = await self.produce_outputs(inputs_obj, new_out, wildcards)
                 # Check if the output files exist
-                missing_after = self.enumerate_missing(new_out)
+                missing_after = self.enumerate_missing(out_packets)
                 if missing_after:
                     missing_err = "Following files are missing {}, check the command".format(
                         [packet for packet in missing_after.values()])
