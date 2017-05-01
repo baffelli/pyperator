@@ -215,7 +215,7 @@ class Multigraph(nodes.Component):
         return out_str
 
     def gv_node(self):
-        st = """subgraph cluster_{lab} {{
+        st = """subgraph cluster_{name} {{
                     {dot}  
                     color=blue;
                     label={lab};
