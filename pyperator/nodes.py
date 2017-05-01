@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 from pyperator import IP
 from pyperator import context
 from pyperator.utils import PortRegister, FilePort
-
+import pyperator.logging as _log
 
 class AbstractComponent(metaclass=ABCMeta):
     """
@@ -53,7 +53,10 @@ class Component(AbstractComponent):
         if self.dag:
             return self.dag.log.getChild(self.name)
         else:
-            pass
+            if self._log:
+                return self._log
+            else:
+                return log.setup_custom_logger('buttavia')
 
     def port_table(self):
 

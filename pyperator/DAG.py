@@ -74,18 +74,6 @@ class Multigraph(nodes.Component):
         #Add input and output port register to DAG
 
 
-        # Create repository to track code changes
-        # try:
-        #     repo_path = _os.mkdir(self.workdir + 'tracking')
-        # except FileExistsError:
-        #     pass
-        # try:
-        #     self.tracking_dir = git.Repo.init(self.workdir + 'tracking', self.name)
-        #     self.commit_code('Initial Commit')
-        # except Exception as e:
-        #     raise(e)
-        # #Write the code in the temporary dir for tracking
-
     @property
     def tracking_path(self):
         return _os.path.join(self.tracking_dir.working_dir, self.name + '.py')
@@ -128,12 +116,7 @@ class Multigraph(nodes.Component):
     def workdir(self, dir):
         self._workdir = dir
 
-    @property
-    def log(self):
-        if self._log:
-            return self._log
-        else:
-            return _log.setup_custom_logger('buttavia')
+
 
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
@@ -256,24 +239,18 @@ class Multigraph(nodes.Component):
 
     def __call__(self):
         # Add code to the repository
-        # self.commit_code('Commiting code before running DAG'.format(self.name))
         loop = asyncio.get_event_loop()
         self.loop = loop
-        self.log.info('DAG {}: Starting DAG'.format(self.name))
-        # self.log.debug('DAG {}: has following nodes {}'.format(self.name, self.iternodes()))
+        self.log.info('Starting DAG')
+        self.log.debug('has following nodes {}'.format(list(self.iternodes())))
         try:
             tasks = [asyncio.ensure_future(node()) for node in self.iternodes()]
             loop.run_until_complete(asyncio.gather(*tasks))
-            # pending = asyncio.Task.all_tasks()
-            # print(pending)
-            # loop.run_until_complete(asyncio.gather(*pending))
-            # loop.create_task(consumers)
         except StopAsyncIteration as e:
-            self.log.info('DAG {}: Received EOS'.format(self.name))
+            self.log.info('Received EOS')
         except Exception as e:
-            # self.commit_code("The DAG failed with the message {}".format(e))
             self.log.exception(e)
-            self.log.info('DAG {}: Stopping DAG by cancelling scheduled tasks'.format(self.name))
+            self.log.info('Stopping DAG by cancelling scheduled tasks')
             if not loop.is_closed():
                 task = asyncio.Task.all_tasks()
                 future = asyncio.gather(*(task))
@@ -282,5 +259,5 @@ class Multigraph(nodes.Component):
         finally:
             if loop.is_running():
                 loop.stop()
-                self.log.info('DAG {}: Stopping DAG'.format(self.name))
-            self.log.info('DAG {}: Stopped'.format(self.name))
+                self.log.info('Stopping DAG')
+            self.log.info('Stopped')
