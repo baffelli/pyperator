@@ -22,7 +22,7 @@ class AbstractComponent(metaclass=ABCMeta):
 
 class Component(AbstractComponent):
     def __init__(self, name):
-        self._name = name
+        self.name = name
         # Input and output ports
         self.inputs = PortRegister(self)
         self.outputs = PortRegister(self)
@@ -47,12 +47,12 @@ class Component(AbstractComponent):
     def type_str(self):
         return type(self).__name__
 
-    @property
-    def name(self):
-        if self.dag:
-            return self.dag.name + '.' + self._name
-        else:
-            return self._name
+    # @property
+    # def name(self):
+    #     if self.dag:
+    #         return self.dag.name + '.' + self._name
+    #     else:
+    #         return self._name
 
 
     @property
@@ -80,7 +80,7 @@ class Component(AbstractComponent):
         def format_ports(ports, total_ports):
             return "".join(
                 port_element(id=id(port), portname=port.name, portcolor=map_type(port),
-                             colspan=colspan(len(ports), len(total_ports))) for port in ports)
+                             colspan=colspan(len(list(ports)), len(list(total_ports)))) for port in ports)
 
         row_template = "<TR>{ports}</TR>"
 

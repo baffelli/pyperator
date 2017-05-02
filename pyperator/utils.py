@@ -181,7 +181,7 @@ class Port:
             if not self.optional:
                 ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
                 packet.drop()
-                self.log.info(ex_str)
+                self.log.debug(ex_str)
             else:
                 e = PortDisconnectedError(self)
                 self.log.error(e)
