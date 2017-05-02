@@ -123,6 +123,8 @@ class Port:
     def set_initial_packet(self, value):
         packet = InformationPacket(value, owner=self.component)
         self._iip = packet
+        for other in self.other:
+            other.set_initial_packet(value)
         self.is_connected=True
 
     def kickstart(self):
@@ -250,8 +252,8 @@ class Port:
 
 
     def __repr__(self):
-        port_template = "Port {component.name}:{name}"
-        formatted = port_template.format(**self.__dict__)
+        port_template = "{component.name} at {id}:{name} -> {other}"
+        formatted = port_template.format(id=id(self.component),**self.__dict__)
         return formatted
 
     def gv_string(self):
@@ -343,7 +345,7 @@ class PortRegister:
         return self.ports.__len__()
 
     def __str__(self):
-        return "{component}: {ports}".format(component=self.component, ports=list(self.ports.keys()))
+        return "{component}: {ports}".format(component=self.component, ports=list(self.ports.values()))
 
 
 
@@ -351,7 +353,7 @@ class PortRegister:
         yield from self.ports.items()
 
     def values(self):
-        return self.ports.values()
+        return set(self.ports.values())
 
     def keys(self):
         return self.ports.keys()
@@ -370,9 +372,9 @@ class PortRegister:
     async def receive_packets(self):
         futures = {}
         packets = {}
-        for p_name, p in self.items():
+        for p in self.values():
             if p.open:
-                futures[p_name] = asyncio.ensure_future(p.receive_packet())
+                futures[p.name] = asyncio.ensure_future(p.receive_packet())
         for k, v in futures.items():
             data = await v
             packets[k] = data
@@ -390,13 +392,13 @@ class PortRegister:
 
     def send_packets(self, packets):
         futures = []
-        for p_name, p in self.items():
-            packet = packets.get(p_name)
+        for p in self.values():
+            packet = packets.get(p.name)
             futures.append(asyncio.ensure_future(p.send_packet(packet)))
         return futures
 
     def iter_disconnected(self):
-        for name, p in self.items():
+        for p in self.values():
             if not p.is_connected:
-                yield (name, p)
+                yield (p.name, p)
 
