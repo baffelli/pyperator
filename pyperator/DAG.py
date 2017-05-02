@@ -12,6 +12,9 @@ from pyperator import exceptions
 from pyperator import logging as _log
 
 
+import warnings as _warn
+import itertools as _iter
+
 # class Graph(metaclass=ABCMeta):
 #     """
 #     This is the abstract graph from which the different types of graphs
@@ -49,6 +52,18 @@ from pyperator import logging as _log
 
 
 
+def check_connections(graph):
+    for node in graph.iternodes():
+        for disconn_name, disconn_port in node.inputs.iter_disconnected():
+            print(disconn_name)
+            if not disconn_port.optional:
+               node.log.warn("The following input port is disconnected {}:{}".format(disconn_port.component.name, disconn_port.name))
+        for disconn_name, disconn_port in node.outputs.iter_disconnected():
+            print(disconn_name)
+            if not disconn_port.optional:
+                node.log.warn("The following output port is disconnected {}:{}".format(disconn_port.component.name,
+                                                                                      disconn_port.name))
+
 
 
 class Multigraph(nodes.Component):
@@ -65,45 +80,13 @@ class Multigraph(nodes.Component):
     def __init__(self, name, log=None, log_level=logging.DEBUG, workdir=None):
         super(Multigraph, self).__init__(name)
         self._nodes = set()
-        self.name = name
+        self._name = name
         self.workdir = workdir or './'
         self._log_path = None or log
-        self.name = name or _os.path.basename(main.__file__)
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
         self.log.info("Created DAG {} with workdir {}".format(self.name, self.workdir))
         #Add input and output port register to DAG
 
-
-    @property
-    def tracking_path(self):
-        return _os.path.join(self.tracking_dir.working_dir, self.name + '.py')
-
-    @property
-    def base_commit_message(self):
-        return "DAG {}:".format(self.name)
-
-    def new_file(self, file):
-        return file in self.tracking_dir.index.diff(None, name_only=True).iter_change_type('A')
-
-    def code_change(self, file):
-        return file in self.tracking_dir.index.diff(None, name_only=True)
-
-    def commit_code(self, message):
-        self.commit_external(main.__file__, message)
-
-    def commit_external(self, file, message):
-        file = _os.path.basename(shutil.copy(file, self.tracking_dir.working_dir))
-        if self.code_change(file):
-            commit_message = self.base_commit_message + message + ", file {} added because code changed".format(file)
-        elif file in self.tracking_dir.untracked_files:
-            commit_message = self.base_commit_message + message + "  files {} added because the file is new".format(
-                file)
-        else:
-            commit_message = None
-        if commit_message:
-            self.tracking_dir.index.add([file])
-            self.tracking_dir.index.commit(commit_message)
-            self._log.debug("{} in {}".format(commit_message, self.tracking_dir))
 
     @property
     def workdir(self):
@@ -159,11 +142,20 @@ class Multigraph(nodes.Component):
     def hasnode(self, node):
         return node in self._nodes
 
-    def disconnect(self, node1, node2):
+    def disconnect(self, node1: nodes.Component, node2: nodes.Component ):
         # TODO implement it
         pass
 
-    def iternodes(self):
+    def iternodes(self) -> nodes.Component:
+        """
+        Iterate all nodes in the DAG.
+        By delegating the inner iteration to the instances of
+        :class:`pyperator.nodes.Component`
+        it is very easy to recursively flatten
+        subnets.
+        
+        :yields: `pyperator.nodes.Component` 
+        """
         for node in self._nodes:
             yield from node.iternodes()
 
@@ -206,6 +198,9 @@ class Multigraph(nodes.Component):
         return st
 
 
+
+
+
     def graph_dot_table(self):
         # List of nodes
         nodes_gen = (node.gv_node() for node in self.iternodes())
@@ -242,7 +237,7 @@ class Multigraph(nodes.Component):
         loop = asyncio.get_event_loop()
         self.loop = loop
         self.log.info('Starting DAG')
-        self.log.debug('has following nodes {}'.format(list(self.iternodes())))
+        self.log.info('has following nodes {}'.format(list(self.iternodes())))
         try:
             tasks = [asyncio.ensure_future(node()) for node in self.iternodes()]
             loop.run_until_complete(asyncio.gather(*tasks))
@@ -255,7 +250,6 @@ class Multigraph(nodes.Component):
                 task = asyncio.Task.all_tasks()
                 future = asyncio.gather(*(task))
                 future.cancel()
-                # consumers.cancel()
         finally:
             if loop.is_running():
                 loop.stop()

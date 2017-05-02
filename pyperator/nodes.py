@@ -22,7 +22,7 @@ class AbstractComponent(metaclass=ABCMeta):
 
 class Component(AbstractComponent):
     def __init__(self, name):
-        self.name = name
+        self._name = name
         # Input and output ports
         self.inputs = PortRegister(self)
         self.outputs = PortRegister(self)
@@ -46,6 +46,13 @@ class Component(AbstractComponent):
 
     def type_str(self):
         return type(self).__name__
+
+    @property
+    def name(self):
+        if self.dag:
+            return self.dag.name + '.' + self._name
+        else:
+            return self._name
 
 
     @property
@@ -122,7 +129,7 @@ class Component(AbstractComponent):
 
     def send_to_all(self, data):
         # Send
-        self._log.debug("Sending '{}' to all output ports".format(data))
+        self.log.debug("Sending '{}' to all output ports".format(data))
         packets = {p: IP.InformationPacket(data, owner=self) for p, v in self.outputs.items()}
         futures = self.outputs.send_packets(packets)
         return futures
@@ -161,16 +168,6 @@ class Component(AbstractComponent):
     def iternodes(self):
         yield self
 
-
-    def check_dangling_ports(self):
-        """
-        This component check if any port
-        in the component marked as 'mandatory' has been left unconnected
-        :return: 
-        """
-        disconnected_inputs = list(self.inputs.iter_disconnected(self.inputs))
-        disconnected_outputs = list(self.inputs.iter_disconnected(self.outputs))
-        return disconnected_inputs, disconnected_outputs
 
 
     @property
