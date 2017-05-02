@@ -6,6 +6,9 @@ import subprocess as _sub
 import tempfile as _temp
 import os
 import shutil
+from collections import namedtuple
+
+import contextlib
 
 
 from pyperator import IP
@@ -30,6 +33,17 @@ def make_async_call(cmd, stderr, stdout):
 
 
 
+def normalize_path_to_workdir(path, workdir):
+    """
+    Normalizes a path and returns an output path relative
+    to the current workdir
+    :param path: 
+    :param workdir: 
+    :return: 
+    """
+    #Find the common prefix
+    return os.path.normpath(workdir + os.path.basename(path))
+
 
 class PacketRegister(_collabc.Mapping):
     """
@@ -42,6 +56,7 @@ class PacketRegister(_collabc.Mapping):
     def __init__(self, packets):
         self._packets = {k: v for k, v in packets.items()}
         self._temp_packets = {}
+
 
 
     def copy_temp(self):
@@ -61,7 +76,6 @@ class PacketRegister(_collabc.Mapping):
         self._temp_packets = PacketRegister(paths)
         return self._temp_packets
 
-
     def finalize_temp(self):
         """
         This is used to copy the temporary files
@@ -69,8 +83,8 @@ class PacketRegister(_collabc.Mapping):
         :return: 
         """
         for (k_temp, v_temp),(k_final,v_final) in zip(self._temp_packets.items(),self.items()):
+            print(k_temp, v_temp, v_final)
             if not os.path.exists(str(v_final)):
-                print(k_temp, v_temp, v_final)
                 shutil.copy(str(v_temp), str(v_final))
 
 
@@ -107,6 +121,7 @@ class PacketRegister(_collabc.Mapping):
     def __exit__(self, exc_type, exc_val, exc_tb):
         print(list(self.values()), list(self._temp_packets.values()))
         self.finalize_temp()
+
 
 
 
@@ -181,7 +196,8 @@ class FileOperator(Component):
             try:
                 # First try formatting outpur
                 try:
-                    out_paths[out] =os.path.normpath(self.dag.workdir + os.path.relpath(self.output_formatters[out](inputs, wildcards),start=self.dag.workdir))
+                    out_paths[out] =normalize_path_to_workdir(self.output_formatters[out](inputs, wildcards),
+                                                              self.dag.workdir)
                 except KeyError:
                     out_paths[out] = self.UniqueFormatter(out)(inputs, wildcards)
                     self.log.info(
@@ -235,8 +251,7 @@ class FileOperator(Component):
                 inputs_obj = PacketRegister(received_packets)
                 # Produce the outputs using the tempfile
                 #context manager
-                print(list(out_packets.values()))
-                with out_packets.copy_temp() as temp_out:
+                with out_packets as temp_out:
                     new_out = await self.produce_outputs(inputs_obj, temp_out, wildcards)
                 # Check if the output files exist
                 missing_after = self.enumerate_missing(out_packets)
