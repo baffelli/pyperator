@@ -9,12 +9,8 @@ class ComponentError(BaseException):
 
 class PortError(Exception):
     def __init__(self, message, channel, *args):
-        try:
-            new_message = "Component {component}: Port {name} {}".format(component=channel.component, name=channel.name, message=message)
-        except:
-            new_message = 'fail'
-        super(PortError, self).__init__()
-        self.message = new_message
+        new_message = "Component {component}: Port {name} {message}".format(component=channel.component, name=channel.name, message=message)
+        super(PortError, self).__init__(new_message)
 
 
 class PortNotExistingError(ComponentError):

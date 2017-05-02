@@ -9,6 +9,12 @@ from pyperator.IP import InformationPacket, EndOfStream
 from pyperator.exceptions import PortNotExistingError, PortDisconnectedError, OutputOnlyError, InputOnlyError, \
     PortClosedError, PortAlreadyConnectedError, PortAlreadyExistingError
 
+
+
+
+
+
+
 # Constraint for regex (from snakemake)
 regex_wildcards = _re.compile(
     r"""
@@ -68,6 +74,10 @@ class Default(dict):
         return key
 
 
+
+
+
+
 class Port:
     """
     This is a regular Port component, that can be connected to another port
@@ -90,7 +100,7 @@ class Port:
     .. _noflo: https://github.com/noflo/noflo/issues/90
     """
 
-    def __init__(self, name, size=-1, component=None, mandatory=False):
+    def __init__(self, name, size=-1, component=None, optional=False):
         self.name = name
         self.size = size
         self.component = component
@@ -100,7 +110,8 @@ class Port:
         self._iip = False
         #if set to true, the port must be connected
         #before the component can be used
-        self.mandatory=mandatory
+        self.optional=optional
+        self.is_connected = False
 
 
     @property
@@ -112,6 +123,7 @@ class Port:
     def set_initial_packet(self, value):
         packet = InformationPacket(value, owner=self.component)
         self._iip = packet
+        self.is_connected=True
 
     def kickstart(self):
         packet = InformationPacket(None)
@@ -145,6 +157,8 @@ class Port:
     def connect(self, other_port):
         if other_port not in self.other:
             self.other.append(other_port)
+            self.is_connected = True
+            other_port.is_connected= True
         else:
             raise PortAlreadyConnectedError(self, other_port)
 
@@ -164,10 +178,14 @@ class Port:
                 self.log.ex(e)
                 raise e
         else:
-            ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
-            packet.drop()
-            self.log.error(ex_str)
-            # raise PortDisconnectedError()
+            if not self.optional:
+                ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
+                packet.drop()
+                self.log.info(ex_str)
+            else:
+                e = PortDisconnectedError(self)
+                self.log.error(e)
+                raise e
 
     async def send(self, data):
         packet = InformationPacket(data, owner=self.component)
@@ -195,7 +213,9 @@ class Port:
             else:
                 return EndOfStream()
         else:
-            raise PortDisconnectedError
+            e = PortDisconnectedError(self, 'disc')
+            self.log.error(e)
+            raise e
 
     def __aiter__(self):
         return self
@@ -228,12 +248,6 @@ class Port:
     def path(self, path):
         pass
 
-    @property
-    def is_connected(self):
-        if self.other is not []:
-            return True
-        else:
-            return False
 
     def __repr__(self):
         port_template = "Port {component.name}:{name}"
@@ -277,7 +291,7 @@ class OutputPort(Port):
 
 class InputPort(Port):
     def __init__(self, *args, **kwargs):
-        super(InputPort, self).__init__(*args, **kwargs)
+        super(InputPort, self).__init__(*args, optional=False, **kwargs)
 
     async def send_packet(self, packet):
         raise InputOnlyError(self)
@@ -331,8 +345,7 @@ class PortRegister:
     def __str__(self):
         return "{component}: {ports}".format(component=self.component, ports=list(self.ports.keys()))
 
-    # def __repr__(self):
-    #     return self.port.__repr__()
+
 
     def items(self):
         yield from self.ports.items()
