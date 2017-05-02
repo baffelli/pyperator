@@ -45,6 +45,16 @@ def normalize_path_to_workdir(path, workdir):
     return os.path.normpath(workdir + os.path.basename(path))
 
 
+def check_missing(path, workdir):
+    return not os.path.exists(normalize_path_to_workdir(path, workdir))
+
+
+def list_missing(out_packets, workdir):
+    return {port: packet for port, packet in out_packets.items() if
+             check_missing(str(packet), workdir)}
+
+
+
 class PacketRegister(_collabc.Mapping):
     """
     This class is used to represent a collection of
@@ -72,7 +82,7 @@ class PacketRegister(_collabc.Mapping):
         #Create temporary file
         paths = {}
         for k, v in self._packets.items():
-            paths[k] = IP.InformationPacket(_path.Path(_temp.NamedTemporaryFile(delete=False).name))
+            paths[k] = IP.InformationPacket(_path.Path(_temp.NamedTemporaryFile(delete=True).name))
         self._temp_packets = PacketRegister(paths)
         return self._temp_packets
 
@@ -119,8 +129,13 @@ class PacketRegister(_collabc.Mapping):
         return self.copy_temp()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        print(list(self.values()), list(self._temp_packets.values()))
-        self.finalize_temp()
+        if exc_val:
+            print(exc_val)
+            for name, packet in self._temp_packets.items():
+                del packet
+            raise(exc_val)
+        else:
+            self.finalize_temp()
 
 
 
@@ -205,7 +220,7 @@ class FileOperator(Component):
                 self.log.debug(
                     "Output port {} will send file '{}'".format(out_port, out_paths[out]))
             except NameError as e:
-                ex_text = 'Port {} does not have a path formatter specified'.format( out)
+                ex_text = 'Port {} does not have a path formatter specified'.format(out)
                 self.log.error(ex_text)
                 raise FormatterError(ex_text)
             except Exception as e:
@@ -224,8 +239,6 @@ class FileOperator(Component):
     #         if _os.path.getmtime(out_packet.path) < _os.path.getmtime(inpacket.path):
 
 
-    def enumerate_missing(self, out_packets):
-        return {port: packet for port, packet in out_packets.items() if not packet.exists()}
 
     def produce_outputs(self, input_packets, output_packets, wildcards):
         pass
@@ -239,9 +252,9 @@ class FileOperator(Component):
             out_paths, wildcards = self.generate_output_paths(received_packets)
             out_packets = self.generate_packets(out_paths)
             # Check for missing packet
-            missing = self.enumerate_missing(out_packets)
+            missing = list_missing(out_paths, self.dag.workdir)
             if missing:
-                self.log.info("Output files '{}' do not exist not exist, command will be run".format(
+                self.log.warn("Output files '{}' do not exist not exist, command will be run".format(
                     [
                         packet
                         for
@@ -251,10 +264,12 @@ class FileOperator(Component):
                 inputs_obj = PacketRegister(received_packets)
                 # Produce the outputs using the tempfile
                 #context manager
-                with out_packets as temp_out:
-                    new_out = await self.produce_outputs(inputs_obj, temp_out, wildcards)
+                # with out_packets as temp_out:
+                new_out = await self.produce_outputs(inputs_obj, out_packets, wildcards)
+
                 # Check if the output files exist
-                missing_after = self.enumerate_missing(out_packets)
+                missing_after = list_missing(out_packets, self.dag.workdir)
+                print('m',missing_after)
                 if missing_after:
                     missing_err = "Following files are missing {}, check the command".format(
                         [packet for packet in missing_after.values()])
@@ -263,7 +278,7 @@ class FileOperator(Component):
             else:
                 self.log.debug("All output files exist, command will not be run")
                 new_out = out_packets
-            await asyncio.wait(self.send_packets(new_out.as_dict()))
+            await asyncio.wait(self.send_packets(out_packets.as_dict()))
             await asyncio.sleep(0)
 
 
@@ -313,6 +328,7 @@ class ShellScript(Shell):
         # self.dag.commit_external(self.script, "Component {} uses script {}".format(self.name, self.script) )
 
     async def produce_outputs(self, input_packets, output_packets, wildcards):
+        print(input_packets, output_packets)
         with open(self.script) as input_script:
             formatted_cmd = input_script.read().format(inputs=input_packets,
                                                        outputs=output_packets, wildcards=wildcards)

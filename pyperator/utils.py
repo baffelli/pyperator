@@ -252,7 +252,7 @@ class Port:
 
 
     def __repr__(self):
-        port_template = "{component.name} at {id}:{name} -> {other}"
+        port_template = "{id}:{name} at {component.name} -> {other}"
         formatted = port_template.format(id=id(self.component),**self.__dict__)
         return formatted
 

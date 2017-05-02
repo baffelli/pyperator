@@ -85,7 +85,6 @@ class Multigraph(nodes.Component):
         self._log_path = None or log
         self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
         self.log.info("Created DAG {} with workdir {}".format(self.name, self.workdir))
-        #Add input and output port register to DAG
 
 
     @property
@@ -161,7 +160,7 @@ class Multigraph(nodes.Component):
 
     def iterarcs(self):
         for source in self.iternodes():
-            for name, port in source.outputs.items():
+            for port in list(source.outputs.values()):
                 for dest in port.iterends():
                     yield (port, dest)
 
