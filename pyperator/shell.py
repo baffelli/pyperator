@@ -57,16 +57,21 @@ class PacketRegister(_collabc.Mapping):
         #Create temporary file
         paths = {}
         for k, v in self._packets.items():
-            paths[k] = IP.InformationPacket(_path.Path(_temp.NamedTemporaryFile().name))
-        self._temp_packets= PacketRegister(paths)
+            paths[k] = IP.InformationPacket(_path.Path(_temp.NamedTemporaryFile(delete=False).name))
+        self._temp_packets = PacketRegister(paths)
         return self._temp_packets
 
 
     def finalize_temp(self):
+        """
+        This is used to copy the temporary files
+        to the final destination
+        :return: 
+        """
         for (k_temp, v_temp),(k_final,v_final) in zip(self._temp_packets.items(),self.items()):
-            if not os.path.exists(str(v_temp)):
-                print(v_temp, v_final)
-                shutil.copy(v_temp, v_final)
+            if not os.path.exists(str(v_final)):
+                print(k_temp, v_temp, v_final)
+                shutil.copy(str(v_temp), str(v_final))
 
 
 
@@ -100,6 +105,7 @@ class PacketRegister(_collabc.Mapping):
         return self.copy_temp()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        print(list(self.values()), list(self._temp_packets.values()))
         self.finalize_temp()
 
 
@@ -163,7 +169,9 @@ class FileOperator(Component):
     def generate_output_paths(self, received_data):
         """
         This function generates the (dynamic) output and inputs
-        paths using the inputs and the formatting functions
+        paths using the inputs and the formatting functions.
+        The output paths are always relative to the DAGs
+        current workdir
         """
 
         inputs = PacketRegister(received_data)
@@ -173,7 +181,7 @@ class FileOperator(Component):
             try:
                 # First try formatting outpur
                 try:
-                    out_paths[out] = self.dag.workdir + self.output_formatters[out](inputs, wildcards)
+                    out_paths[out] =os.path.normpath(self.dag.workdir + os.path.relpath(self.output_formatters[out](inputs, wildcards),start=self.dag.workdir))
                 except KeyError:
                     out_paths[out] = self.UniqueFormatter(out)(inputs, wildcards)
                     self.log.info(
@@ -225,9 +233,11 @@ class FileOperator(Component):
                         in
                         missing.values()]))
                 inputs_obj = PacketRegister(received_packets)
-                # Produce the outputs
-                with out_packets.copy_temp() as new_out:
-                    new_out = await self.produce_outputs(inputs_obj, new_out, wildcards)
+                # Produce the outputs using the tempfile
+                #context manager
+                print(list(out_packets.values()))
+                with out_packets.copy_temp() as temp_out:
+                    new_out = await self.produce_outputs(inputs_obj, temp_out, wildcards)
                 # Check if the output files exist
                 missing_after = self.enumerate_missing(out_packets)
                 if missing_after:
