@@ -123,8 +123,8 @@ class Port:
     def set_initial_packet(self, value):
         packet = InformationPacket(value, owner=self.component)
         self._iip = packet
-        for other in self.other:
-            other.set_initial_packet(value)
+        # for other in self.other:
+        #     other.set_initial_packet(value)
         self.is_connected=True
 
     def kickstart(self):
@@ -155,6 +155,23 @@ class Port:
         :return: None
         """
         self.connect(other)
+
+
+    def __rrshift__(self, other):
+        """
+        Nicer form of connect, used
+        to connect two ports as
+        :code:`a >> b`, equivalent to :code:`a.connect(b)`
+        this version with swapped operator is used to set initial packets
+        :param other: :class:`pyperator.utils.port`
+        :return: None
+        """
+        try:
+            other.connect(self)
+        except:
+            self.set_initial_packet(other)
+
+
 
     def connect(self, other_port):
         if other_port not in self.other:
