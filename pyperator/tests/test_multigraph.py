@@ -10,6 +10,7 @@ import asyncio
 from pyperator.utils import InputPort, OutputPort, FilePort, Wildcards
 from pyperator import IP
 
+import pyperator.decorators
 
 import os
 import uuid
@@ -116,6 +117,7 @@ class TestMultigraph(TestCase):
         c1.outputs.add(OutputPort('a'))
         c1.outputs.add(OutputPort('b'))
         self.assertEquals(c1.outputs.a, c1.outputs['a'])
+
 
 
     def testOutputReceive(self):
@@ -504,3 +506,47 @@ class TestMultigraph(TestCase):
         g()
         with open('/tmp/graph.dot','w+') as of:
              of.write(g.dot())
+
+    def testInportDecorator(self):
+
+        class TestComponent(Component):
+            @pyperator.decorators.inport('a')
+            def __init__(self, name):
+                super().__init__(name)
+
+        c = TestComponent('a')
+        print(c.inputs)
+
+    def testOutportsDecorator(self):
+
+        class TestComponent(Component):
+            @pyperator.decorators.outport('a')
+            def __init__(self, name):
+                super().__init__(name)
+        c = TestComponent('a')
+        print(c.outputs)
+
+
+    def testComponentDecorator(self):
+        @pyperator.decorators.inport('a')
+        @pyperator.decorators.component
+        async def testComponent(self):
+            while True:
+                b = await self.inputs.a.receive()
+                print(b)
+                asyncio.sleep(0)
+        with Multigraph('g') as g:
+            d = testComponent('a')
+            c = components.GeneratorSource('gen')
+            c.inputs.gen.set_initial_packet(range(4))
+            c.outputs.OUT >> d.inputs.a
+        g()
+
+    def testMagicIIP(self):
+        with Multigraph('g') as g:
+            d = components.ShowInputs('a')
+            d << InputPort('IN')
+            c = components.GeneratorSource('gen')
+            range(4) >> c.inputs.gen
+            c.outputs.OUT >> d.inputs.IN
+        g()
