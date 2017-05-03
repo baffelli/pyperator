@@ -1,15 +1,11 @@
 import asyncio
 import collections.abc as _collabc
 import hashlib as _hl
+import os
 import pathlib as _path
+import shutil
 import subprocess as _sub
 import tempfile as _temp
-import os
-import shutil
-from collections import namedtuple
-
-import contextlib
-
 
 from pyperator import IP
 from pyperator.decorators import log_schedule
@@ -18,9 +14,30 @@ from pyperator.nodes import Component
 from pyperator.utils import Wildcards
 
 
-def unique_filename(outport, inputs, wildcards):
-    unique_if = ("".join([str(v.path) for p, v in inputs.items()])).encode('utf-8')
+def unique_filename(inputs, wildcards):
+    """
+    Generates an unique outputs filename
+    by hashing inputs values.
+    :param outport: 
+    :param inputs: 
+    :param wildcards: 
+    :return: 
+    """
+    unique_if = ("".join([str(v) for p, v in inputs.items()])).encode('utf-8')
     return str(_hl.md5(unique_if).hexdigest())
+
+
+def dynamic_filename(inputs, wildcards, pattern):
+    """
+    Generate a filename dynamically by 
+    formatting a pattern with
+    input values and wildcards
+    :param inputs: 
+    :param wildcards: 
+    :param pattern: 
+    :return: 
+    """
+    return pattern.format(inputs=inputs, wildcards=wildcards)
 
 
 def make_call(cmd, stderr, stdout):
@@ -32,7 +49,6 @@ def make_async_call(cmd, stderr, stdout):
     return asyncio.create_subprocess_shell(cmd, stdout=stdout, stderr=stderr)
 
 
-
 def normalize_path_to_workdir(path, workdir):
     """
     Normalizes a path and returns an output path relative
@@ -41,7 +57,7 @@ def normalize_path_to_workdir(path, workdir):
     :param workdir: 
     :return: 
     """
-    #Find the common prefix
+    # Find the common prefix
     return os.path.normpath(workdir + os.path.basename(path))
 
 
@@ -51,8 +67,7 @@ def check_missing(path, workdir):
 
 def list_missing(out_packets, workdir):
     return {port: packet for port, packet in out_packets.items() if
-             check_missing(str(packet), workdir)}
-
+            check_missing(str(packet), workdir)}
 
 
 class PacketRegister(_collabc.Mapping):
@@ -67,8 +82,6 @@ class PacketRegister(_collabc.Mapping):
         self._packets = {k: v for k, v in packets.items()}
         self._temp_packets = {}
 
-
-
     def copy_temp(self):
         """
         Create a temporary copy of
@@ -79,7 +92,7 @@ class PacketRegister(_collabc.Mapping):
         
         :return: 
         """
-        #Create temporary file
+        # Create temporary file
         paths = {}
         for k, v in self._packets.items():
             paths[k] = IP.InformationPacket(_path.Path(_temp.NamedTemporaryFile(delete=True).name))
@@ -92,13 +105,9 @@ class PacketRegister(_collabc.Mapping):
         to the final destination
         :return: 
         """
-        for (k_temp, v_temp),(k_final,v_final) in zip(self._temp_packets.items(),self.items()):
-            print(k_temp, v_temp, v_final)
+        for (k_temp, v_temp), (k_final, v_final) in zip(self._temp_packets.items(), self.items()):
             if not os.path.exists(str(v_final)):
                 shutil.copy(str(v_temp), str(v_final))
-
-
-
 
     def __getitem__(self, item):
         if item in self._packets:
@@ -124,7 +133,7 @@ class PacketRegister(_collabc.Mapping):
     def __str__(self):
         return self._packets.__str__()
 
-    #Context manager: creates temporary files
+    # Context manager: creates temporary files
     def __enter__(self):
         return self.copy_temp()
 
@@ -133,13 +142,9 @@ class PacketRegister(_collabc.Mapping):
             print(exc_val)
             for name, packet in self._temp_packets.items():
                 del packet
-            raise(exc_val)
+            raise (exc_val)
         else:
             self.finalize_temp()
-
-
-
-
 
 
 class FileOperator(Component):
@@ -167,12 +172,14 @@ class FileOperator(Component):
         self.output_formatters[port] = lambda inputs, wildcards: path
 
     def DynamicFormatter(self, outport, pattern):
-        self.output_formatters[outport] = lambda inputs, wildcards: pattern.format(inputs=inputs,
-                                                                                   wildcards=wildcards)
+        formatter = lambda inputs, wildcards: dynamic_filename(inputs, wildcards, pattern)
+        self.output_formatters[outport] = formatter
+        return formatter
 
     def UniqueFormatter(self, outport):
-        formatter = lambda inputs, wildcards: unique_filename(outport, inputs, wildcards)
+        formatter = lambda inputs, wildcards: unique_filename(inputs, wildcards)
         self.output_formatters[outport] = formatter
+        return formatter
 
     def WildcardsExpression(self, inport, pattern):
         self.wildcard_expressions[inport] = Wildcards(pattern)
@@ -190,9 +197,9 @@ class FileOperator(Component):
             if inport in self.wildcard_expressions:
                 wildcards_dict[inport] = self.wildcard_expressions[inport].parse(inpacket)
                 self.log.debug("Port {}, with wildcard pattern {}, wildcards are {}".format(inport,
-                                                                                               self.wildcard_expressions[
-                                                                                                   inport].pattern,
-                                                                                               wildcards_dict[inport]))
+                                                                                            self.wildcard_expressions[
+                                                                                                inport].pattern,
+                                                                                            wildcards_dict[inport]))
         wildcards = type('wildcards', (object,), wildcards_dict)
         return wildcards
 
@@ -203,20 +210,19 @@ class FileOperator(Component):
         The output paths are always relative to the DAGs
         current workdir
         """
-
         inputs = PacketRegister(received_data)
         out_paths = {}
         wildcards = self.parse_wildcards(received_data)
         for out, out_port in self.outputs.items():
             try:
-                # First try formatting outpur
-                try:
-                    out_paths[out] =normalize_path_to_workdir(self.output_formatters[out](inputs, wildcards),
-                                                              self.dag.workdir)
-                except KeyError:
-                    out_paths[out] = self.UniqueFormatter(out)(inputs, wildcards)
-                    self.log.info(
-                        "Output port {} has no output formatter specified, will form an unique ID based on inputs".format(out_port, out_paths[out]))
+                current_formatter = self.output_formatters[out]
+            except KeyError:
+                current_formatter = self.UniqueFormatter(out)
+                self.log.warn(
+                    "Output port {} has no output formatter specified, will form an unique ID based on inputs".format(
+                        out_port, out_paths[out]))
+            try:
+                out_paths[out] = normalize_path_to_workdir(current_formatter(inputs, wildcards), self.dag.workdir)
                 self.log.debug(
                     "Output port {} will send file '{}'".format(out_port, out_paths[out]))
             except NameError as e:
@@ -263,13 +269,12 @@ class FileOperator(Component):
                         missing.values()]))
                 inputs_obj = PacketRegister(received_packets)
                 # Produce the outputs using the tempfile
-                #context manager
+                # context manager
                 # with out_packets as temp_out:
                 new_out = await self.produce_outputs(inputs_obj, out_packets, wildcards)
 
                 # Check if the output files exist
                 missing_after = list_missing(out_packets, self.dag.workdir)
-                print('m',missing_after)
                 if missing_after:
                     missing_err = "Following files are missing {}, check the command".format(
                         [packet for packet in missing_after.values()])
