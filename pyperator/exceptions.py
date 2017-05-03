@@ -84,3 +84,9 @@ class FileNotExistingError(Exception):
 class PacketOwnedError(Exception):
     def __init__(self, *args, **kwargs):
         BaseException.__init__(self, *args, **kwargs)
+
+
+class NotCoroutineError(Exception):
+    def __init__(self, fun, *args, **kwargs):
+        base_message = "Function {name} is not a coroutine".format(name=fun.__name__)
+        BaseException.__init__(self,base_message, *args, **kwargs)
