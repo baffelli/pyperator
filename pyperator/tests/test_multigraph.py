@@ -10,7 +10,6 @@ import asyncio
 from pyperator.utils import InputPort, OutputPort, FilePort, Wildcards
 from pyperator import IP
 
-from pyperator import subgraph
 
 import os
 import uuid
@@ -253,7 +252,19 @@ class TestMultigraph(TestCase):
         graph()
 
 
+    def testFormatString(self):
 
+        with Multigraph('a') as g:
+            formatter = components.FormatString('formatter')
+            formatter << InputPort('i')
+            printer = components.ShowInputs('printer')
+            printer << InputPort('IN')
+            gen = GeneratorSource('gen')
+            gen.inputs.gen.set_initial_packet(range(5))
+            formatter.inputs.pattern.set_initial_packet('The number is {i}')
+            gen.outputs.OUT >> formatter.inputs.i
+            formatter.outputs.OUT >> printer.inputs.IN
+            g()
 
     def testOneOffProcess(self):
         source1 = ConstantSource('s1', 3)

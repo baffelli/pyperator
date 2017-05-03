@@ -38,15 +38,15 @@ class FormatString(Component):
     and sends it to "OUT"
     """
     def __init__(self, name):
-        super(GeneratorSource, self).__init__(name)
+        super(FormatString, self).__init__(name)
         self.inputs.add(InputPort('pattern'))
-        self.inputs.add(OutputPort('OUT'))
+        self.outputs.add(OutputPort('OUT'))
 
     async def __call__(self):
         pattern = await self.inputs.pattern.receive()
         while True:
             packets = await self.inputs.receive_packets()
-            out_string = pattern.format(**packets)
+            out_string = pattern.format(**{name:p.value for name,p in packets.items()})
             await self.outputs.OUT.send(out_string)
             await asyncio.sleep(0)
 
