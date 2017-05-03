@@ -1,4 +1,30 @@
 from pyperator.DAG import Multigraph
+from pyperator.utils import InputPort, OutputPort
+from pyperator.nodes import Component
+import asyncio
+
+class SubIn(Component):
+    """
+    This class implements an input
+    for a subgraph
+    """
+    def __init__(self, name, **kwargs):
+        super(SubIn, self).__init__(name, **kwargs)
+        self.inputs.add(InputPort('IN'))
+        self.outputs.add(OutputPort('OUT'))
+
+
+    async def __call__(self):
+        while True:
+            print('here')
+            pack = await self.inputs.IN.receive_packet()
+            print(pack)
+            await self.outputs.OUT.send_packet(pack.copy())
+            await asyncio.sleep(0)
+
+
+
+
 
 
 class Subnet(Multigraph):
