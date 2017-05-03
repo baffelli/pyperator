@@ -528,15 +528,24 @@ class TestMultigraph(TestCase):
 
 
     def testComponentDecorator(self):
+        @pyperator.decorators.inport('c')
+        @pyperator.decorators.outport('c')
         @pyperator.decorators.inport('a')
         @pyperator.decorators.component
         async def testComponent(self):
+            """
+            Does stuff
+            :param self: 
+            :return: 
+            """
             while True:
                 b = await self.inputs.a.receive()
                 print(b)
                 asyncio.sleep(0)
         with Multigraph('g') as g:
             d = testComponent('a')
+            print(d.inputs)
+            print(d.outputs)
             c = components.GeneratorSource('gen')
             c.inputs.gen.set_initial_packet(range(4))
             c.outputs.OUT >> d.inputs.a
