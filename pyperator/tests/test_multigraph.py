@@ -16,6 +16,10 @@ import os
 import uuid
 
 
+import tempfile
+
+import networkx as nx
+
 async def printer(**kwargs):
     print("Inputs are {}".format(kwargs))
     return
@@ -464,10 +468,7 @@ class TestMultigraph(TestCase):
 
 
     def testSubgraph(self):
-
-
         with Multigraph('sub') as sg:
-
             source1 = GeneratorSource('s1')
             source2 = GeneratorSource('s2',)
             p = components.Product('prod')
@@ -477,13 +478,18 @@ class TestMultigraph(TestCase):
             source2.outputs.OUT >> p.inputs.IN2
             source1.inputs.gen.set_initial_packet(range(5))
             source2.inputs.gen.set_initial_packet(range(5))
-            p.outputs.OUT >> OutputPort('OUT')
+            sg.outputs.export(p.outputs.OUT, "OUT")
 
         with Multigraph('b') as g:
-            sg = subgraph.Subgraph.from_graph('subgraph', sg)
+            g.add_node(sg)
             printer  = components.ShowInputs('show')
             printer << InputPort('IN')
+            print(sg.outputs.OUT == p.outputs.OUT)
             sg.outputs.OUT >> printer.inputs.IN
-        print(g.dot())
-        with open('./subgraph.dot','w+') as of:
+        print(p.outputs.OUT.component)
+        print(sg.outputs.OUT.component)
+        print(list(g.iterarcs()))
+        print(list(g.iternodes()))
+        g()
+        with open('/tmp/graph.dot','w+') as of:
              of.write(g.dot())
