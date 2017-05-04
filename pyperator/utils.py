@@ -154,7 +154,10 @@ class Port:
         :param other: :class:`pyperator.utils.port`
         :return: None
         """
-        self.connect(other)
+        try:
+            self.connect(other)
+        except:
+            self.set_initial_packet((other))
 
 
     def __rrshift__(self, other):
@@ -162,10 +165,12 @@ class Port:
         Nicer form of connect, used
         to connect two ports as
         :code:`a >> b`, equivalent to :code:`a.connect(b)`
-        this version with swapped operator is used to set initial packets
+        this version with swapped operator is used to set initial packets.
+        At the moment, it cannot be used with numpy arrays
         :param other: :class:`pyperator.utils.port`
         :return: None
         """
+        #FIXME cannot be used with numpy arrays!
         try:
             other.connect(self)
         except:
