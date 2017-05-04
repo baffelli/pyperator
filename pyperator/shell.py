@@ -13,6 +13,7 @@ from pyperator.exceptions import FormatterError, FileNotExistingError, CommandFa
 from pyperator.nodes import Component
 from pyperator.utils import Wildcards
 
+import itertools as _iter
 
 def unique_filename(inputs, wildcards):
     """
@@ -64,10 +65,29 @@ def normalize_path_to_workdir(path, workdir):
 def check_missing(path, workdir):
     return not os.path.exists(normalize_path_to_workdir(path, workdir))
 
+def check_older(ancestor, current):
+    try:
+        return os.path.getmtime(current) < os.path.getmtime(ancestor)
+    #If it is not a file, we return false
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return False
+
 
 def list_missing(out_packets, workdir):
     return {port: packet for port, packet in out_packets.items() if
             check_missing(str(packet), workdir)}
+
+def list_modified(out_packets, in_packets):
+    new_ancestors = set()
+    to_redo = {}
+    for (out_port, out_packet), (in_port, in_packet) in _iter.product(out_packets.items(), in_packets.items()):
+        if check_older(str(in_packet), str(out_packet)):
+            new_ancestors.add(in_packet)
+            to_redo[out_port] = out_packet
+    return new_ancestors, to_redo
+
 
 
 class PacketRegister(_collabc.Mapping):
@@ -156,13 +176,18 @@ class FileOperator(Component):
     `produce_outputs` that generates the output packets, the component
     will automatically check wether the files that it produces exists, in order
     to avoid rerunning the command again.
+    If check_older=True, the modification date of files
+    are compared and things are redone whenever an input file is
+    newer than any existing output.
     """
 
-    def __init__(self, name):
+    def __init__(self, name, check_older=False):
         super(FileOperator, self).__init__(name)
         self.output_formatters = {}
         # Input ports may have wildcard expressions attached
         self.wildcard_expressions = {}
+        self.check_older = check_older
+
 
     def FixedFormatter(self, port, path):
         """
@@ -258,8 +283,13 @@ class FileOperator(Component):
             out_paths, wildcards = self.generate_output_paths(received_packets)
             out_packets = self.generate_packets(out_paths)
             # Check for missing packet
-            missing = list_missing(out_paths, self.dag.workdir)
-            if missing:
+            missing = list_missing(out_packets, self.dag.workdir)
+            #Check for modified ancestors
+            if self.check_older:
+                modified_ancestors, to_redo = list_modified(out_packets, PacketRegister(received_packets))
+            else:
+                to_redo = {}
+            if missing or to_redo:
                 self.log.warn("Output files '{}' do not exist not exist, command will be run".format(
                     [
                         packet
@@ -267,6 +297,13 @@ class FileOperator(Component):
                         packet
                         in
                         missing.values()]))
+                self.log.warn("Input files are older than output files '{}', the command will be run".format(
+                    [
+                        packet
+                        for
+                        packet
+                        in
+                        to_redo.values()]))
                 inputs_obj = PacketRegister(received_packets)
                 # Produce the outputs using the tempfile
                 # context manager
@@ -280,6 +317,7 @@ class FileOperator(Component):
                         [packet for packet in missing_after.values()])
                     self.log.error(missing_err)
                     raise FileNotExistingError(missing_err)
+
             else:
                 self.log.debug("All output files exist, command will not be run")
                 new_out = out_packets
@@ -294,8 +332,8 @@ class Shell(FileOperator):
     for input and output
     """
 
-    def __init__(self, name, cmd):
-        super(Shell, self).__init__(name)
+    def __init__(self, name, cmd, **kwargs):
+        super(Shell, self).__init__(name, **kwargs)
         self.cmd = cmd
         self.output_formatters = {}
         # Input ports may have wildcard expressions attached
@@ -326,8 +364,8 @@ class ShellScript(Shell):
     is given in the constructor
     """
 
-    def __init__(self, name, script):
-        super(ShellScript, self).__init__(name, None)
+    def __init__(self, name, script, **kwargs):
+        super(ShellScript, self).__init__(name, None, **kwargs)
         self.script = script
         self.log.info("Initialized to run script {}".format(self.name, self.script))
         # self.dag.commit_external(self.script, "Component {} uses script {}".format(self.name, self.script) )
