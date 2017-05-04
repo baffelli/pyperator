@@ -16,9 +16,7 @@ class SubIn(Component):
 
     async def __call__(self):
         while True:
-            print('here')
             pack = await self.inputs.IN.receive_packet()
-            print(pack)
             await self.outputs.OUT.send_packet(pack.copy())
             await asyncio.sleep(0)
 
