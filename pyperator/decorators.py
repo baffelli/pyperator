@@ -1,6 +1,9 @@
 
 from pyperator.utils import InputPort, OutputPort
 from pyperator.nodes import Component
+from pyperator.exceptions import NotCoroutineError
+
+import asyncio
 
 def log_schedule(method):
     def inner(instance):
@@ -15,10 +18,13 @@ def log_schedule(method):
 
 
 def component(func):
-    def inner(*args, **kwargs):
-        new_c = type(func.__name__,(Component,), {'__call__':func, "__doc__":func.__doc__})
-        return new_c(*args, **kwargs)
-    return inner
+    if  asyncio.iscoroutinefunction(func):
+        def inner(*args, **kwargs):
+            new_c = type(func.__name__,(Component,), {'__call__':func, "__doc__":func.__doc__})
+            return new_c(*args, **kwargs)
+        return inner
+    else:
+        raise NotCoroutineError(func)
 
 
 

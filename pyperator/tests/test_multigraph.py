@@ -559,3 +559,9 @@ class TestMultigraph(TestCase):
             range(4) >> c.inputs.gen
             c.outputs.OUT >> d.inputs.IN
         g()
+
+
+    def testNoCoroutineDecorator(self):
+        @pyperator.decorators.component
+        def a():
+            return 1
