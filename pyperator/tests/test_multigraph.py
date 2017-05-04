@@ -519,10 +519,12 @@ class TestMultigraph(TestCase):
 
     def testOutportsDecorator(self):
 
+        @pyperator.decorators.outport('a')
         class TestComponent(Component):
-            @pyperator.decorators.outport('a')
             def __init__(self, name):
                 super().__init__(name)
+
+
         c = TestComponent('a')
         print(c.outputs)
 
