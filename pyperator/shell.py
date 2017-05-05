@@ -6,14 +6,36 @@ import pathlib as _path
 import shutil
 import subprocess as _sub
 import tempfile as _temp
+import re as _re
+
 
 from pyperator import IP
 from pyperator.decorators import log_schedule
 from pyperator.exceptions import FormatterError, FileNotExistingError, CommandFailedError
 from pyperator.nodes import Component
-from pyperator.utils import Wildcards
+from pyperator.utils import Wildcards, InputPort,OutputPort
 
 import itertools as _iter
+
+port_pattern = _re.compile(r"\{(?P<type>inputs|outputs|params)\.(?P<port_name>\w+)(\.\w+)*\}")
+
+def parse_command(cmd):
+    """
+    Parses a command and returns
+    a dictionary of {register_name:(port_names)}
+    :param cmd: 
+    :return: 
+    """
+    new_ports = {'inputs':set(), 'params':set(), 'outputs':set()}
+    for line in cmd.splitlines():
+        matches = port_pattern.finditer(line)
+        for match in matches:
+            if match.group('type') in new_ports:
+                new_ports[match.group('type')].add(match.group('port_name'))
+    return new_ports
+
+
+
 
 def unique_filename(inputs, wildcards):
     """
@@ -338,6 +360,15 @@ class Shell(FileOperator):
         self.output_formatters = {}
         # Input ports may have wildcard expressions attached
         self.wildcard_expressions = {}
+        #Add an additional "parameters" port register
+        #Automatically add ports
+        new_ports = parse_command(cmd)
+        #Horribly stateful and based on side-effects, adds port
+        #from the command
+        [self.inputs.add(InputPort(name)) for name in new_ports['inputs']]
+        [self.outputs.add(OutputPort(name)) for name in new_ports['outputs']]
+
+
 
     async def produce_outputs(self, input_packets, output_packets, wildcards):
         formatted_cmd = self.cmd.format(inputs=input_packets, outputs=output_packets, wildcards=wildcards)
@@ -365,30 +396,10 @@ class ShellScript(Shell):
     """
 
     def __init__(self, name, script, **kwargs):
-        super(ShellScript, self).__init__(name, None, **kwargs)
+        #read command
+        with open(script) as input_script:
+            cmd = input_script.read()
+        #Produce command
+        super(ShellScript, self).__init__(name, cmd, **kwargs)
         self.script = script
-        self.log.info("Initialized to run script {}".format(self.name, self.script))
-        # self.dag.commit_external(self.script, "Component {} uses script {}".format(self.name, self.script) )
-
-    async def produce_outputs(self, input_packets, output_packets, wildcards):
-        print(input_packets, output_packets)
-        with open(self.script) as input_script:
-            formatted_cmd = input_script.read().format(inputs=input_packets,
-                                                       outputs=output_packets, wildcards=wildcards)
-            print(formatted_cmd)
-
-        self.log.info("Executing command {}".format(self.script))
-        # Define stdout and stderr pipes
-        stdout = asyncio.subprocess.PIPE
-        stderr = asyncio.subprocess.PIPE
-        proc = await make_async_call(formatted_cmd, stderr, stdout)
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            fail_str = "running command '{}' failed with output: \n {}".format(formatted_cmd, stderr.strip())
-            e = CommandFailedError(self, fail_str)
-            self.log.error(e)
-            raise e
-        else:
-            success_str = "Command successfully run, with output: {}".format(self.name, stdout)
-            self.log.info(success_str)
-            return output_packets
+        self.log.info("Initialized to run script {}".format(self.name, script))
