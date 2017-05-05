@@ -3,7 +3,7 @@ from abc import ABCMeta, abstractmethod
 
 from pyperator import IP
 from pyperator import context
-from pyperator.utils import PortRegister, FilePort
+from pyperator.utils import PortRegister, FilePort, InputPort
 import pyperator.logging as _log
 
 class AbstractComponent(metaclass=ABCMeta):
@@ -26,6 +26,8 @@ class Component(AbstractComponent):
         # Input and output ports
         self.inputs = PortRegister(self)
         self.outputs = PortRegister(self)
+        #Add a secret keep alive port
+        self._keepalive = InputPort('_keep_alive')
         # Color of the node
         self.color = 'grey'
         # This is an horrible

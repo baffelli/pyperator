@@ -6,7 +6,7 @@ import pathlib as _path
 from pyperator import IP
 from pyperator.nodes import Component
 from pyperator.utils import InputPort, OutputPort, FilePort
-from pyperator.decorators import log_schedule
+from pyperator.decorators import log_schedule, reschedule
 
 
 class GeneratorSource(Component):
@@ -321,10 +321,12 @@ class ShowInputs(Component):
     def __init__(self, name):
         super(ShowInputs, self).__init__(name)
 
-    @log_schedule
+
+    # @log_schedule
+    @reschedule
     async def __call__(self):
         while True:
             packets = await self.receive_packets()
             show_str = "Component {} saw:\n".format(self.name) + "\n".join([str(p) for p in packets.values()])
-            self._log.debug(show_str)
+            self.log.debug(show_str)
             print(show_str)

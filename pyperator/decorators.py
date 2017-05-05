@@ -12,9 +12,15 @@ def log_schedule(method):
         except AttributeError:
             pass
         return method(instance)
-
     return inner
 
+
+def reschedule(func):
+    async def wrapped(*args):
+        print('rescheduling')
+        return func(*args)
+        print(args, func)
+    return wrapped()
 
 
 def component(func):
@@ -26,6 +32,17 @@ def component(func):
     else:
         raise NotCoroutineError(func)
 
+
+# def repeat(portname)
+
+def run_once(func):
+    """
+    This decorator 
+    can automatically
+    make a component run once only
+    :param func: 
+    :return: 
+    """
 
 
 def inport(portname,**portopts):

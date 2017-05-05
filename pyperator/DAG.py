@@ -238,7 +238,7 @@ class Multigraph(nodes.Component):
         self.log.info('Starting DAG')
         self.log.info('has following nodes {}'.format(list(self.iternodes())))
         try:
-            tasks = [asyncio.ensure_future(node()) for node in self.iternodes()]
+            tasks = [asyncio.ensure_future(node) for node in self.iternodes()]
             loop.run_until_complete(asyncio.gather(*tasks))
         except StopAsyncIteration as e:
             self.log.info('Received EOS')
