@@ -508,9 +508,9 @@ class TestMultigraph(TestCase):
              of.write(g.dot())
 
     def testInportDecorator(self):
-
+        @pyperator.decorators.inport('a')
         class TestComponent(Component):
-            @pyperator.decorators.inport('a')
+
             def __init__(self, name):
                 super().__init__(name)
 
@@ -567,3 +567,14 @@ class TestMultigraph(TestCase):
         @pyperator.decorators.component
         def a():
             return 1
+
+
+class TestShell(TestCase):
+
+    def testPattern(self):
+        port_dict = pyperator.shell.parse_command('{inputs.a.c}_{inputs.c.d}_{outputs.d}')
+        self.assertDictEqual(port_dict, {'inputs':set(['a','c']),'outputs':set('d'), 'params':set()})
+
+    def testAutoports(self):
+        a = pyperator.shell.Shell("test", 'cp {inputs.a} {outputs.a}')
+        print(a.inputs)
