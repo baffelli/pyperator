@@ -462,15 +462,17 @@ class TestMultigraph(TestCase):
 
 
     def testProduct(self):
-        source1 = GeneratorSource('s1', (i for i in range(5)))
-        source2 = GeneratorSource('s2', (i for i in range(5)))
+        source1 = GeneratorSource('s1')
+        source2 = GeneratorSource('s2')
+        range(5) >> source1.inputs.gen
+        range(5) >> source2.inputs.gen
         p = components.Product('prod')
         printer = ShowInputs('printer')
         printer.inputs.add(InputPort('IN'))
         p.inputs.add(InputPort('i'))
         p.inputs.add(InputPort('j'))
         p.outputs.add(OutputPort('OUT'))
-        g = Multigraph()
+        g = Multigraph('cul')
         g.connect(source1.outputs.OUT, p.inputs.i)
         g.connect(source2.outputs.OUT, p.inputs.j)
         g.connect(p.outputs.OUT, printer.inputs.IN)
@@ -507,29 +509,38 @@ class TestMultigraph(TestCase):
         with open('/tmp/graph.dot','w+') as of:
              of.write(g.dot())
 
-    def testInportDecorator(self):
-        @pyperator.decorators.inport('a')
-        class TestComponent(Component):
-
-            def __init__(self, name):
-                super().__init__(name)
-
-        c = TestComponent('a')
-        print(c.inputs)
-
-    def testOutportsDecorator(self):
-
-        @pyperator.decorators.outport('a')
-        class TestComponent(Component):
-            def __init__(self, name):
-                super().__init__(name)
+    def testMagicIIP(self):
+        with Multigraph('g') as g:
+            d = components.ShowInputs('a')
+            d << InputPort('IN')
+            c = components.GeneratorSource('gen')
+            range(4) >> c.inputs.gen
+            c.outputs.OUT >> d.inputs.IN
+        g()
 
 
-        c = TestComponent('a')
-        print(c.outputs)
 
 
-    def testComponentDecorator(self):
+
+class TestShell(TestCase):
+
+    def testPattern(self):
+        port_dict = pyperator.shell.parse_command('{inputs.a.c}_{inputs.c.d}_{outputs.d}')
+        self.assertDictEqual(port_dict, {'inputs':set(['a','c']),'outputs':set('d'), 'params':set()})
+
+    def testAutoports(self):
+        a = pyperator.shell.Shell("test", 'cp {inputs.a} {outputs.a}')
+        print(a.inputs)
+
+
+class TestDecorator(TestCase):
+
+    def test_no_coroutine(self):
+        @pyperator.decorators.component
+        def a():
+            return 1
+
+    def test_component(self):
         @pyperator.decorators.inport('c')
         @pyperator.decorators.outport('c')
         @pyperator.decorators.inport('a')
@@ -553,28 +564,33 @@ class TestMultigraph(TestCase):
             c.outputs.OUT >> d.inputs.a
         g()
 
-    def testMagicIIP(self):
-        with Multigraph('g') as g:
-            d = components.ShowInputs('a')
-            d << InputPort('IN')
-            c = components.GeneratorSource('gen')
-            range(4) >> c.inputs.gen
-            c.outputs.OUT >> d.inputs.IN
-        g()
+
+    def test_inport_decorator(self):
+        @pyperator.decorators.inport('a')
+        class TestComponent(Component):
+
+            def __init__(self, name):
+                super().__init__(name)
+
+        c = TestComponent('a')
+        print(c.inputs)
+
+    def test_outports_decorator(self):
+
+        @pyperator.decorators.outport('a')
+        class TestComponent(Component):
+            def __init__(self, name):
+                super().__init__(name)
 
 
-    def testNoCoroutineDecorator(self):
-        @pyperator.decorators.component
-        def a():
-            return 1
+        c = TestComponent('a')
+        print(c.outputs)
 
 
-class TestShell(TestCase):
-
-    def testPattern(self):
-        port_dict = pyperator.shell.parse_command('{inputs.a.c}_{inputs.c.d}_{outputs.d}')
-        self.assertDictEqual(port_dict, {'inputs':set(['a','c']),'outputs':set('d'), 'params':set()})
-
-    def testAutoports(self):
-        a = pyperator.shell.Shell("test", 'cp {inputs.a} {outputs.a}')
-        print(a.inputs)
+    def test_run_once(self):
+        with Multigraph('test') as g:
+            a = pyperator.decorators.once(GeneratorSource('gen'))
+            b = components.ShowInputs('a')
+            b << InputPort('IN1')
+            # a.outputs.OUT >> b.inputs.IN1
+            # range(4) >> a.inputs.gen
