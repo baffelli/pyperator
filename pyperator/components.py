@@ -2,6 +2,9 @@ import asyncio
 import glob as _glob
 import itertools as _iter
 import pathlib as _path
+import random as _rand
+
+import functools
 
 from pyperator import IP
 from pyperator.nodes import Component
@@ -363,4 +366,49 @@ async def Repeat(self):
     async with self.outputs.OUT as out:
         while True:
             await out.send_packet(in_packet.copy())
+            await asyncio.sleep(0)
+
+
+@inport('IN')
+@outport('count')
+@inport('reset', optional=True)
+@component
+async def Count(self):
+    """
+    This component receives packets from `IN` 
+    and keeps a count that will be continously
+    sent to `count`
+    
+    :param self: 
+    :return: 
+    """
+    count = 0
+    reset = False
+    async with self.outputs.count as out:
+        while True:
+            pack = await self.inputs.IN.receive_packet()
+            count += 1
+            reset = await self.inputs.reset.receive()
+            if reset:
+                count = 0
+            await self.outputs.count.send(count)
+            await asyncio.sleep(0)
+
+@outport('OUT')
+@component
+async def WaitRandom(self):
+    """
+    This component randomly sends 
+    an empty packets after having waited for
+    a random amount of time
+    :param self: 
+    :return: 
+    """
+    async with self.outputs.OUT as out:
+        while True:
+
+            waiting_time = _rand.uniform(0,3)
+            self.log.debug('Will wait for {} '.format(waiting_time))
+            await asyncio.sleep(waiting_time)
+            await self.outputs.OUT.send(True)
             await asyncio.sleep(0)
