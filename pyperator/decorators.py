@@ -28,7 +28,8 @@ def run_once(func):
     Using this decorator, any 
     :class:`pyperator.nodes.components` instance
     will be made to run exactly once the first
-    time all of its inputs will be present.
+    time all of its inputs will be present. This is
+    acheived by wrapping a component in a subnet
     """
     @wraps(func)
     def inner(*args, **kwargs):
@@ -69,6 +70,13 @@ def repeat_out(port_name):
     :param port_name: 
     :return: 
     """
+    def inner(func):
+        @wraps(func)
+        def second_level(*args, **kwargs):
+            comp = func(*args, **kwargs)
+            g = Multigraph(comp.name + '_' + 'wrapper')
+            g.add_node(comp)
+
 
 
 
