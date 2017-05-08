@@ -9,6 +9,7 @@ from pyperator.nodes import Component
 import asyncio
 from pyperator.utils import InputPort, OutputPort, FilePort, Wildcards
 from pyperator import IP
+import pyperator.subnet
 
 import pyperator.decorators
 
@@ -481,6 +482,72 @@ class TestMultigraph(TestCase):
         g()
 
 
+    def testCount(self):
+        with Multigraph('test') as g:
+            source1 = GeneratorSource('s1')
+            source2 = GeneratorSource('s2')
+            range(5) >> source1.inputs.gen
+            range(5) >> source2.inputs.gen
+            reset = GeneratorSource('s3')
+            (True for i in range(100) if i%5 == 0) >> s3
+            p = components.Product('prod')
+            c = components.Count('count')
+            printer = ShowInputs('printer')
+            printer.inputs.add(InputPort('IN'))
+            p.inputs.add(InputPort('i'))
+            p.inputs.add(InputPort('j'))
+            g.connect(source1.outputs.OUT, p.inputs.i)
+            g.connect(source2.outputs.OUT, p.inputs.j)
+            g.connect(p.outputs.OUT, c.inputs.IN)
+            g.connect(c.outputs.count, printer.inputs.IN)
+        print(list(g.iterarcs()))
+        print(g.dot())
+        g()
+
+    def testCountWithReset(self):
+        with Multigraph('test') as g:
+            source1 = GeneratorSource('s1')
+            source2 = GeneratorSource('s2')
+            range(5) >> source1.inputs.gen
+            range(5) >> source2.inputs.gen
+            reset = components.WaitRandom('s3')
+            p = components.Product('prod')
+            c = components.Count('count')
+            printer = ShowInputs('printer')
+            printer.inputs.add(InputPort('IN'))
+            p.inputs.add(InputPort('i'))
+            p.inputs.add(InputPort('j'))
+            g.connect(reset.outputs.OUT, c.inputs.reset)
+            g.connect(source1.outputs.OUT, p.inputs.i)
+            g.connect(source2.outputs.OUT, p.inputs.j)
+            g.connect(p.outputs.OUT, c.inputs.IN)
+            g.connect(c.outputs.count, printer.inputs.IN)
+        print(list(g.iterarcs()))
+        print(g.dot())
+        g()
+
+    def testSubnet(self):
+        with Multigraph('sub') as sg:
+            source1 = GeneratorSource('s1')
+            source2 = GeneratorSource('s2',)
+            p = components.Product('prod')
+            p << InputPort('IN1')
+            p << InputPort('IN2')
+            source1.outputs.OUT >> p.inputs.IN1
+            source2.outputs.OUT >> p.inputs.IN2
+            source1.inputs.gen.set_initial_packet(range(5))
+            source2.inputs.gen.set_initial_packet(range(5))
+            sg.outputs.export(p.outputs.OUT, "OUT")
+
+        with Multigraph('b') as g:
+            sg = pyperator.subnet.Subnet.from_graph(sg)
+            print(sg.outputs)
+            printer  = components.ShowInputs('show')
+            printer << InputPort('IN')
+            sg.outputs.OUT >> printer.inputs.IN
+        g()
+        with open('/tmp/graph.dot','w+') as of:
+             of.write(g.dot())
 
     def testSubgraph(self):
         with Multigraph('sub') as sg:
@@ -589,8 +656,9 @@ class TestDecorator(TestCase):
 
     def test_run_once(self):
         with Multigraph('test') as g:
-            a = pyperator.decorators.once(GeneratorSource('gen'))
+            a = pyperator.decorators.run_once(GeneratorSource('gen'))
             b = components.ShowInputs('a')
             b << InputPort('IN1')
-            # a.outputs.OUT >> b.inputs.IN1
-            # range(4) >> a.inputs.gen
+            a.outputs.OUT >> b.inputs.IN1
+            range(4) >> a.inputs.gen
+        g()
