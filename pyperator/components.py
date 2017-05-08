@@ -6,7 +6,7 @@ import pathlib as _path
 from pyperator import IP
 from pyperator.nodes import Component
 from pyperator.utils import InputPort, OutputPort, FilePort
-from pyperator.decorators import log_schedule
+from pyperator.decorators import log_schedule, component, inport, outport
 
 
 class GeneratorSource(Component):
@@ -179,6 +179,7 @@ class Split(Component):
             else:
                 data.append(packet)
                 await asyncio.sleep(0)
+        await asyncio.sleep(0)
 
 
 # class IterSource(Component):
@@ -275,7 +276,9 @@ class Filter(Component):
             if filter_result:
                 await self.outputs.OUT.send(data)
             else:
-                continue
+                await asyncio.sleep(0)
+            await asyncio.sleep(0)
+
 
 
 class BroadcastApplyFunction(Component):
@@ -328,3 +331,36 @@ class ShowInputs(Component):
             show_str = "Component {} saw:\n".format(self.name) + "\n".join([str(p) for p in packets.values()])
             self._log.debug(show_str)
             print(show_str)
+
+@outport('OUT')
+@inport('IN')
+@component
+async def Once(self):
+    """
+    This component 
+    receives from `IN` once and sends
+    the result to `OUT`. Afterwards, it closes
+    :param self: 
+    :return: 
+    """
+    in_packet = await self.inputs.IN.receive_packet()
+    await self.outputs.OUT.send_packet(in_packet.copy())
+    self.inputs.IN.close()
+
+
+@inport("IN")#: inputs :
+@outport("OUT")
+@component
+async def Repeat(self):
+    """
+    This component receives from `IN` once
+    and repeats it to `OUT` forever
+    
+    :param self: 
+    :return: 
+    """
+    in_packet= await self.inputs.IN.receive_packet()
+    async with self.outputs.OUT as out:
+        while True:
+            await out.send_packet(in_packet.copy())
+            await asyncio.sleep(0)
