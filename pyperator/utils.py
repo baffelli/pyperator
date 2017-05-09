@@ -212,7 +212,7 @@ class Port(PortInterface):
 
     def iterends(self):
         for c in self.connections:
-            yield c.destination
+            yield from c.destination
 
     def itersources(self):
         for c in self.connections:
@@ -253,6 +253,7 @@ class Port(PortInterface):
     def connect(self, other, size=100):
         new_conn = Connection()
         new_conn.connect(self,other, size=10)
+        print(self, other)
         other.connections.append(new_conn)
         self.connections.append(new_conn)
 
@@ -326,7 +327,7 @@ class Port(PortInterface):
     @property
     def other(self):
         for c in self.connections:
-            yield c.destination
+            yield from c.destination
 
     def __repr__(self):
         port_template = "{id}:{name} at {component.name}"
