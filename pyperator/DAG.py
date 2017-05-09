@@ -12,6 +12,9 @@ from pyperator import exceptions
 from pyperator import logging as _log
 
 
+from threading import Thread
+
+
 import warnings as _warn
 import itertools as _iter
 
@@ -49,6 +52,24 @@ import itertools as _iter
 #
 # class BipartiteGraph(Graph):
 #     pass
+
+
+
+def run_in_different_thread(tasks):
+    # loop.run_until_complete(asyncio.gather(*tasks))
+    second_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(second_loop)
+    [second_loop.create_task(task()) for task in tasks]
+    pending = asyncio.Task.all_tasks(second_loop)
+    print(pending)
+    second_loop.run_until_complete(asyncio.gather(*pending))
+    print(pending)
+
+    return second_loop
+
+
+
+
 
 
 
@@ -125,7 +146,9 @@ class Multigraph(nodes.Component):
     def add_node(self, node):
         node.dag = self
         node._log = self._log
+
         self._nodes.add(node)
+        return node
 
     def __radd__(self, other):
         self.add_node(other)
@@ -238,7 +261,7 @@ class Multigraph(nodes.Component):
         self.log.info('Starting DAG')
         self.log.info('has following nodes {}'.format(list(self.iternodes())))
         try:
-            tasks = [asyncio.ensure_future(node()) for node in self.iternodes()]
+            tasks = [loop.create_task(node()) for node in self.iternodes()]
             loop.run_until_complete(asyncio.gather(*tasks))
         except StopAsyncIteration as e:
             self.log.info('Received EOS')
