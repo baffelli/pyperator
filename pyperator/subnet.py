@@ -34,6 +34,7 @@ class SubOut(SubIn):
 
     async def __call__(self):
        async for pack in self.inputs.IN:
+            print(pack)
             await self.outputs.OUT.send_packet(pack.copy())
             await asyncio.sleep(0)
 
@@ -59,23 +60,25 @@ class Subnet(Component):
         #Copy the graph
         #Add an input for each exported inport
         with graph as sg:
-            for (in_name, in_port) in graph.inputs.items():
+            for (in_name, in_port) in sg.inputs.items():
                 #Now add a SubIn
                 sub = SubIn('in_'+in_name)
-                graph._nodes.add(sub)
+                sg._nodes.add(sub)
                 #Remove input port
                 g.inputs.export(sub.inputs.IN, in_name)
                 # connect subin and real port
-                graph.connect(sub.outputs.OUT, in_port)
-            for (out_name, out_port) in graph.outputs.items():
+                sg.connect(sub.outputs.OUT, in_port)
+            for (out_name, out_port) in sg.outputs.items():
                 #Now add a SubIn
-                sub = SubIn('out_'+out_name)
-                graph._nodes.add(sub)
+                sub = SubOut('out_'+out_name)
+                sg._nodes.add(sub)
                 #Export the subin
                 g.outputs.export(sub.outputs.OUT,out_name)
                 #connect subin and real port
-                graph.connect(out_port,sub.inputs.IN)
-            g.subgraph = graph
+                sg.connect(out_port,sub.inputs.IN)
+            g.subgraph = sg
+            g.subgraph.log = g.dag.log.getChild(g.name)
+
         return g
 
 
