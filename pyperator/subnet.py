@@ -71,7 +71,6 @@ class Subnet(Component):
                 g.inputs.export(sub.inputs.IN, in_name)
                 # connect subin and real port
                 for end in in_port.iterends():
-                    print(end)
                     sg.connect(sub.outputs.OUT, end)
             for (out_name, out_port) in sg.outputs.items():
                 #Now add a SubOut
@@ -80,7 +79,9 @@ class Subnet(Component):
                 #Export the subin
                 g.outputs.export(sub.outputs.OUT,out_name)
                 #connect subin and real port
-                sg.connect(out_port,sub.inputs.IN)
+                for end in out_port.iterends():
+                    # sg.connect(sub.outputs.OUT, end)
+                    sg.connect(end,sub.inputs.IN)
             g.subgraph = sg
             g.subgraph.log = g.dag.log.getChild(g.name)
 
