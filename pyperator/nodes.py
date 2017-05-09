@@ -2,9 +2,10 @@ import asyncio
 from abc import ABCMeta, abstractmethod
 
 from pyperator import IP
-from pyperator import context
 from pyperator.utils import PortRegister, FilePort
 import pyperator.logging as _log
+import pyperator.context
+
 
 class AbstractComponent(metaclass=ABCMeta):
     """
@@ -32,9 +33,11 @@ class Component(AbstractComponent):
         # way to ad a component to
         # the global dag defined whitin
         # a context manager
-        self.dag = context._global_dag or None
+        self.dag = pyperator.context._global_dag or None
         if self.dag:
+            print(self.dag.name)
             self.dag.add_node(self)
+
 
     def __repr__(self):
         st = "{}".format(self.name)
@@ -60,10 +63,8 @@ class Component(AbstractComponent):
         if self.dag:
             return self.dag.log.getChild(self.name)
         else:
-            if self._log:
-                return self._log
-            else:
-                return log.setup_custom_logger('buttavia')
+            return _log.setup_custom_logger('buttavia')
+
 
     def port_table(self):
 
