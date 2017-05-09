@@ -91,10 +91,10 @@ class Connection(ConnectionInterface):
     This class represent a limited capacity
     connection between two :class:`pyperator.utils.Port`
     """
-    def __init__(self, size=100,source=None, destination=None):
-        self.queue = asyncio.Queue(maxsize=size)
-        self.source = source
-        self.destination = destination
+    def __init__(self):
+        self.queue = None
+        self.source = None
+        self.destination = set()
 
     async def receive(self):
             packet = await self.queue.get()
@@ -104,10 +104,18 @@ class Connection(ConnectionInterface):
     async def send(self, packet):
             await self.queue.put(packet)
 
+    def connect(self, source, destination, size=100):
+        self.source = source
+        self.destination.add(destination)
+        source.is_connected = True
+        destination.is_connected=True
+        self.queue = asyncio.Queue(maxsize=size)
+
 class IIPConnection(ConnectionInterface):
 
     def __init__(self, value):
         self.value = value
+        self.destination = set()
 
     async def receive(self):
         return self.value
@@ -115,6 +123,10 @@ class IIPConnection(ConnectionInterface):
     async def send(self):
         raise NotImplementedError
 
+    def connect(self, destination, size=100):
+        self.source = self
+        self.destination.add(destination)
+        destination.is_connected=True
 
 
 class PortInterface(metaclass=_abc.ABCMeta):
@@ -167,6 +179,7 @@ class Port(PortInterface):
         #if set to true, the port must be connected
         #before the component can be used
         self.optional=optional
+        self.is_connected=False
 
 
     @property
@@ -178,7 +191,7 @@ class Port(PortInterface):
     def set_initial_packet(self, value):
         packet = InformationPacket(value, owner=self.component)
         conn = IIPConnection(packet)
-        conn.destination = self
+        conn.connect(self)
         self.connections.append(conn)
         self._iip = True
 
@@ -200,6 +213,10 @@ class Port(PortInterface):
     def iterends(self):
         for c in self.connections:
             yield c.destination
+
+    def itersources(self):
+        for c in self.connections:
+            yield c.source
 
     def __rshift__(self, other):
         """
@@ -233,15 +250,11 @@ class Port(PortInterface):
             self.set_initial_packet(other)
 
 
-    @property
-    def is_connected(self):
-        return (len(self.connections))>0
-
     def connect(self, other, size=100):
-        new_conn = Connection(size=size, source=self, destination=other)
-        self.connections.append(new_conn)
+        new_conn = Connection()
+        new_conn.connect(self,other, size=10)
         other.connections.append(new_conn)
-
+        self.connections.append(new_conn)
 
     async def send_packet(self, packet):
         if self.is_connected and not self.optional:
@@ -254,14 +267,13 @@ class Port(PortInterface):
             else:
                 error_message = "Packet {} is not owned by this component, copy it first".format(str(packet), self.name)
                 e = pyperator.exceptions.PacketOwnedError(error_message)
-                self.log.ex(e)
+                self.log.error(e)
                 raise e
-        else:
-            if not self.optional:
+        elif not self.is_connected and self.optional:
                 ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
                 packet.drop()
                 self.log.debug(ex_str)
-            else:
+        else:
                 e = PortDisconnectedError(self)
                 self.log.error(e)
                 raise e
@@ -372,7 +384,6 @@ class OutputPort(Port):
 class InputPort(Port):
     def __init__(self, *args, **kwargs):
         super(InputPort, self).__init__(*args, **kwargs)
-        self.optional = False
 
 
 
