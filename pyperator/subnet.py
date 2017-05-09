@@ -10,8 +10,8 @@ class SubIn(Component):
     """
     def __init__(self, name, **kwargs):
         super(SubIn, self).__init__(name, **kwargs)
-        self.inputs.add(InputPort('IN',  optional=False))
-        self.outputs.add(OutputPort('OUT', optional=False))
+        self.inputs.add(InputPort('IN',  optional=True))
+        self.outputs.add(OutputPort('OUT', optional=True))
 
 
     async def __call__(self):
@@ -28,16 +28,19 @@ class SubIn(Component):
                 await self.outputs.OUT.send_packet(pack.copy())
                 asyncio.sleep(0)
 
-class SubOut(SubIn):
+class SubOut(Component):
     """
     This class implements an output
     for a subgraph
     """
     def __init__(self, name, **kwargs):
         super(SubOut, self).__init__(name, **kwargs)
+        self.inputs.add(InputPort('IN',  optional=True))
+        self.outputs.add(OutputPort('OUT', optional=True))
 
     async def __call__(self):
-       async for pack in self.inputs.IN:
+       while True:
+            pack = await self.inputs.IN.receive_packet()
             await self.outputs.OUT.send_packet(pack.copy())
             await asyncio.sleep(0)
 
@@ -77,11 +80,12 @@ class Subnet(Component):
                 sub = SubOut('out_'+out_name)
                 sg._nodes.add(sub)
                 #Export the subin
-                g.outputs.export(sub.outputs.OUT,out_name)
+
                 #connect subin and real port
-                for end in out_port.iterends():
-                    # sg.connect(sub.outputs.OUT, end)
+                for end in out_port.itersources():
                     sg.connect(end,sub.inputs.IN)
+                g.outputs.export(sub.outputs.OUT, out_name)
+                # sg.connect(out_port, sub.inputs.IN)
             g.subgraph = sg
             g.subgraph.log = g.dag.log.getChild(g.name)
 
