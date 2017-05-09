@@ -63,7 +63,7 @@ class GlobSource(Component):
 
     def __init__(self, name):
         super(GlobSource, self).__init__(name)
-        self.outputs.add(FilePort('OUT'))
+        self.outputs.add(OutputPort('OUT'))
         self.inputs.add(InputPort('pattern'))
 
     @log_schedule

@@ -3,6 +3,8 @@ import logging
 import re as _re
 from collections import OrderedDict as _od
 from collections import namedtuple as nt
+import abc as _abc
+
 
 import pyperator.exceptions
 from pyperator.IP import InformationPacket, EndOfStream
@@ -74,11 +76,72 @@ class Default(dict):
         return key
 
 
+class ConnectionInterface(metaclass=_abc.ABCMeta):
+
+    @_abc.abstractmethod
+    def receive(self):
+        pass
+
+    @_abc.abstractmethod
+    def send(self, packet):
+        pass
+
+class Connection(ConnectionInterface):
+    """
+    This class represent a limited capacity
+    connection between two :class:`pyperator.utils.Port`
+    """
+    def __init__(self, size=100):
+        self.queue = asyncio.Queue(maxsize=size)
+        self.source = None
+        self.destination = None
+
+    async def receive(self):
+        if self.source:
+            packet = await self.queue.get()
+            self.queue.task_done()
+            return packet
+
+    async def send(self, packet):
+        if self.destination:
+            if self.destination.open:
+                await self.queue.put(packet)
+            else:
+                raise PortClosedError()
+
+class IIPConnection(ConnectionInterface):
+
+    def __init__(self, value):
+        self.value = value
+
+    async def receive(self):
+        return self.value
+
+    async def send(self):
+        raise NotImplementedError
 
 
 
+class PortInterface(metaclass=_abc.ABCMeta):
+    """
+    Common interface for all ports
+    """
 
-class Port:
+    @_abc.abstractmethod
+    async def receive_packet(self):
+        pass
+
+    @_abc.abstractmethod
+    async def send_packet(self):
+        pass
+
+    @_abc.abstractmethod
+    async def close(self):
+        pass
+
+
+
+class Port(PortInterface):
     """
     This is a regular Port component, that can be connected to another port
     in the same or in another component. It offers methods to send and receive values and packets.
@@ -100,18 +163,15 @@ class Port:
     .. _noflo: https://github.com/noflo/noflo/issues/90
     """
 
-    def __init__(self, name, size=-10, component=None, optional=False):
+    def __init__(self, name, component=None, optional=False):
         self.name = name
-        self.size = size
         self.component = component
-        self.other = []
-        self.queue = asyncio.Queue(maxsize=size)
+        self.connections = []
         self.open = True
         self._iip = None
         #if set to true, the port must be connected
         #before the component can be used
         self.optional=optional
-        self.is_connected = False
 
 
     @property
@@ -122,11 +182,10 @@ class Port:
 
     def set_initial_packet(self, value):
         packet = InformationPacket(value, owner=self.component)
-        self.queue.put_nowait(packet)
-        self._iip = packet
-        # for other in self.other:
-        #     other.set_initial_packet(value)
-        self.is_connected=True
+        conn = IIPConnection(packet)
+        conn.destination = self
+        self.connections.append(conn)
+        self._iip = True
 
     def kickstart(self):
         packet = InformationPacket(None)
@@ -141,10 +200,10 @@ class Port:
 
     @property
     def connect_dict(self):
-        return {self: [other for other in self.other]}
+        return {self: [other for other in self.connections]}
 
     def iterends(self):
-        yield from self.other
+        yield from self.connections
 
     def __rshift__(self, other):
         """
@@ -178,27 +237,26 @@ class Port:
             self.set_initial_packet(other)
 
 
+    @property
+    def is_connected(self):
+        return len(self.connections)>0
 
-    def connect(self, other_port):
-        if other_port not in self.other:
-            self.other.append(other_port)
-            self.is_connected = True
-            other_port.is_connected= True
-        else:
-            raise PortAlreadyConnectedError(self, other_port)
+    def connect(self, other_port, size=100):
+        new_conn = Connection(size=size)
+        new_conn.source = self
+        new_conn.destination = other_port
+        self.connections.append(new_conn)
+        other_port.connections.append(new_conn)
 
     async def send_packet(self, packet):
-        if self.is_connected:
+        if self.is_connected and not self.optional:
             if packet.owner == self.component or packet.owner == None:
-                for other in self.other:
-                    if other.open:
-                        self.log.debug(
-                            "Sending {} to {}".format(str(packet), self.name))
-                        if other.queue.full():
-                            self.log.error('Component {}: the queue of {} is full'.format(self.component.name, other.name))
-                        await other.queue.put(packet)
-                    else:
-                        raise PortClosedError()
+                for conn in self.connections:
+                    self.log.debug(
+                        "Sending {} from port {}".format(str(packet), self.name))
+                    if conn.queue.full():
+                        self.log.error('Component {}: the queue between {} and {}'.format(self.component.name, conn.source.name, conn.destination.name))
+                    await conn.send(packet)
             else:
                 error_message = "Packet {} is not owned by this component, copy it first".format(str(packet), self.name)
                 e = pyperator.exceptions.PacketOwnedError(error_message)
@@ -222,25 +280,25 @@ class Port:
         if self.is_connected:
             if self.open:
                 self.log.debug("Receiving at {}".format(self.name))
-                if not self._iip:
-                    packet = await self.queue.get()
-                    self.queue.task_done()
-                else:
-                    packet = self._iip
-                    # self.queue.task_done()
-                    self.log.debug("Receiving IIP at {}".format(self.name))
-                    await self.close()
-                    # self.open = False
+                #First come first serve receiving
+                done, pending = await asyncio.wait([conn.receive() for conn in self.connections], return_when=asyncio.FIRST_COMPLETED)
+                #The first packet is taken
+                packet= done.pop().result()
+                #Cancel all other tasks
+                [task.cancel() for task in pending]
                 self.log.debug(
                     "Received {} from {}".format(packet, self.name))
-                if packet.is_eos and self.queue.empty():
+                # if self._iip:
+                #     await self.close()
+                if packet.is_eos:
+                    await self.close()
                     stop_message = "Stopping because {} was received".format(packet)
                     self.log.info(stop_message)
                     raise StopAsyncIteration(stop_message)
                 else:
                     return packet
             else:
-                return EndOfStream()
+                raise StopAsyncIteration("stopp")
         else:
             e = PortDisconnectedError(self, 'disc')
             self.log.error(e)
@@ -250,36 +308,22 @@ class Port:
         return self
 
     async def __anext__(self):
-        try:
-            packet = await self.receive_packet()
-            return packet
-        except:
-            raise StopAsyncIteration
+        packet = await self.receive_packet()
+        return packet
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
-
-    async def close(self):
-        packet = EndOfStream()
-        packet.owner = self.component
-        await self.send_packet(packet)
-        self.open = False
-        self.log.debug("Closing {}".format(self.name))
-
-    @property
-    def path(self):
-        return None
-
-    @path.setter
-    def path(self, path):
         pass
 
+    @property
+    def other(self):
+        for c in self.connections:
+            yield c.destination
 
     def __repr__(self):
-        port_template = "{id}:{name} at {component.name} -> {other}"
+        port_template = "{id}:{name} at {component.name} -> {connections}"
         formatted = port_template.format(id=id(self.component),**self.__dict__)
         return formatted
 
@@ -287,9 +331,9 @@ class Port:
         return "{compid}:{portid}".format(compid=id(self.component), portid=id(self))
 
     def gv_conn(self):
-        if self.other:
+        if self.connections:
             return "\n".join(
-                ["{self} -> {ohter}".format(self=self.gv_string(), ohter=other.gv_string()) for other in self.other])
+                ["{self} -> {ohter}".format(self=self.gv_string(), ohter=other.gv_string()) for other in self.connections])
 
 
 class FilePort(Port):
@@ -314,8 +358,12 @@ class OutputPort(Port):
         packet = EndOfStream()
         packet.owner = self.component
         await self.send_packet(packet)
-        self._open = False
+        await asyncio.wait([conn.queue.join() for conn in self.connections], return_when=asyncio.ALL_COMPLETED)
+        self.open = False
         self.log.debug("Closing {}".format(self.name))
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
 
 
 class InputPort(Port):
@@ -326,7 +374,7 @@ class InputPort(Port):
         raise InputOnlyError(self)
 
     async def close(self):
-        self._open = False
+        self.open = False
         self.log.debug("closing {}".format(self.name))
 
 
@@ -400,12 +448,12 @@ class PortRegister:
         futures = {}
         packets = {}
         for p in self.values():
-            packets[p.name] = await p.receive_packet()
-        #     if p.open:
-        #         futures[p.name] = asyncio.ensure_future(p.receive_packet())
-        # for k, v in futures.items():
-        #     data = await v
-        #     packets[k] = data
+            # packets[p.name] = await p.receive_packet()
+            if p.open:
+                futures[p.name] = asyncio.ensure_future(p.receive_packet())
+        for k, v in futures.items():
+            data = await v
+            packets[k] = data
         return packets
 
     def __aiter__(self):
@@ -424,6 +472,9 @@ class PortRegister:
             packet = packets.get(p.name)
             futures.append(asyncio.ensure_future(p.send_packet(packet)))
         return futures
+
+    def all_closed(self):
+        return all([not p.open for p in self.values()])
 
     def iter_disconnected(self):
         for p in self.values():
