@@ -15,10 +15,14 @@ class SubIn(Component):
 
 
     async def __call__(self):
-        while True:
+        if self.inputs.IN._iip:
             pack = await self.inputs.IN.receive_packet()
             await self.outputs.OUT.send_packet(pack.copy())
-            await asyncio.sleep(0)
+            await self.outputs.OUT.close()
+        else:
+           async for pack in self.inputs.IN:
+                await self.outputs.OUT.send_packet(pack.copy())
+                await asyncio.sleep(0)
 
 class SubOut(SubIn):
     """
@@ -28,7 +32,10 @@ class SubOut(SubIn):
     def __init__(self, name, **kwargs):
         super(SubOut, self).__init__(name, **kwargs)
 
-
+    async def __call__(self):
+       async for pack in self.inputs.IN:
+            await self.outputs.OUT.send_packet(pack.copy())
+            await asyncio.sleep(0)
 
 
 class Subnet(Component):
@@ -43,39 +50,43 @@ class Subnet(Component):
 
     def __init__(self, name, **kwargs):
         super(Subnet, self).__init__(name, **kwargs)
+        self.subgraph = None
 
     @classmethod
     def from_graph(cls, graph):
         #Add nodes
-
-        g = cls(graph.name)
+        g = Subnet(graph.name)
         #Copy the graph
         #Add an input for each exported inport
-        for (in_name, in_port) in graph.inputs.items():
-            #Now add a SubIn
-            sub = SubIn('in_'+in_name)
-            graph.add_node(sub)
-            #Export the subin
-            g.inputs.export(sub.inputs.IN,in_name)
-            #connect subin and real port
-            graph.connect(sub.outputs.OUT, in_port)
-        for (out_name, out_port) in graph.outputs.items():
-            #Now add a SubIn
-            sub = SubIn('out_'+out_name)
-            graph.add_node(sub)
-            #Export the subin
-            g.outputs.export(sub.outputs.OUT,out_name)
-            #connect subin and real port
-            graph.connect(out_port,sub.inputs.IN)
-        g.nodes = graph._nodes
+        with graph as sg:
+            for (in_name, in_port) in graph.inputs.items():
+                #Now add a SubIn
+                sub = SubIn('in_'+in_name)
+                graph._nodes.add(sub)
+                #Remove input port
+                g.inputs.export(sub.inputs.IN, in_name)
+                # connect subin and real port
+                graph.connect(sub.outputs.OUT, in_port)
+            for (out_name, out_port) in graph.outputs.items():
+                #Now add a SubIn
+                sub = SubIn('out_'+out_name)
+                graph._nodes.add(sub)
+                #Export the subin
+                g.outputs.export(sub.outputs.OUT,out_name)
+                #connect subin and real port
+                graph.connect(out_port,sub.inputs.IN)
+            g.subgraph = graph
         return g
 
 
+
     async def __call__(self):
-        for node in self.nodes:
-            self.log.info("Component {} is a subnet, it will add its nodes to the"
-                          " current executor.".format(self.name))
+        self.log.info("Component {} is a subnet, it will add its nodes to the"
+                      " current executor.".format(self.name))
+        for node in self.subgraph.iternodes():
+            print(node)
             self.dag.loop.create_task(node())
+
 
 
 
