@@ -35,7 +35,6 @@ class Component(AbstractComponent):
         # a context manager
         self.dag = pyperator.context._global_dag or None
         if self.dag:
-            print(self.dag.name)
             self.dag.add_node(self)
 
 
