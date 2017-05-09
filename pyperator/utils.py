@@ -91,23 +91,18 @@ class Connection(ConnectionInterface):
     This class represent a limited capacity
     connection between two :class:`pyperator.utils.Port`
     """
-    def __init__(self, size=100):
+    def __init__(self, size=100,source=None, destination=None):
         self.queue = asyncio.Queue(maxsize=size)
-        self.source = None
-        self.destination = None
+        self.source = source
+        self.destination = destination
 
     async def receive(self):
-        if self.source:
             packet = await self.queue.get()
             self.queue.task_done()
             return packet
 
     async def send(self, packet):
-        if self.destination:
-            if self.destination.open:
-                await self.queue.put(packet)
-            else:
-                raise PortClosedError()
+            await self.queue.put(packet)
 
 class IIPConnection(ConnectionInterface):
 
@@ -203,7 +198,8 @@ class Port(PortInterface):
         return {self: [other for other in self.connections]}
 
     def iterends(self):
-        yield from self.connections
+        for c in self.connections:
+            yield c.destination
 
     def __rshift__(self, other):
         """
@@ -239,24 +235,22 @@ class Port(PortInterface):
 
     @property
     def is_connected(self):
-        return len(self.connections)>0
+        return (len(self.connections))>0
 
-    def connect(self, other_port, size=100):
-        new_conn = Connection(size=size)
-        new_conn.source = self
-        new_conn.destination = other_port
+    def connect(self, other, size=100):
+        new_conn = Connection(size=size, source=self, destination=other)
         self.connections.append(new_conn)
-        other_port.connections.append(new_conn)
+        other.connections.append(new_conn)
+
 
     async def send_packet(self, packet):
         if self.is_connected and not self.optional:
             if packet.owner == self.component or packet.owner == None:
-                for conn in self.connections:
-                    self.log.debug(
-                        "Sending {} from port {}".format(str(packet), self.name))
-                    if conn.queue.full():
-                        self.log.error('Component {}: the queue between {} and {}'.format(self.component.name, conn.source.name, conn.destination.name))
-                    await conn.send(packet)
+                done, pending = await asyncio.wait([conn.send(packet) for conn in self.connections],
+                                                   return_when=asyncio.ALL_COMPLETED)
+                self.log.debug(
+                    "Sending {} from port {}".format(str(packet), self.name))
+
             else:
                 error_message = "Packet {} is not owned by this component, copy it first".format(str(packet), self.name)
                 e = pyperator.exceptions.PacketOwnedError(error_message)
@@ -288,8 +282,8 @@ class Port(PortInterface):
                 [task.cancel() for task in pending]
                 self.log.debug(
                     "Received {} from {}".format(packet, self.name))
-                # if self._iip:
-                #     await self.close()
+                if self._iip:
+                    await self.close()
                 if packet.is_eos:
                     await self.close()
                     stop_message = "Stopping because {} was received".format(packet)
@@ -298,7 +292,7 @@ class Port(PortInterface):
                 else:
                     return packet
             else:
-                raise StopAsyncIteration("stopp")
+                raise PortClosedError(self)
         else:
             e = PortDisconnectedError(self, 'disc')
             self.log.error(e)
@@ -323,7 +317,7 @@ class Port(PortInterface):
             yield c.destination
 
     def __repr__(self):
-        port_template = "{id}:{name} at {component.name} -> {connections}"
+        port_template = "{id}:{name} at {component.name}"
         formatted = port_template.format(id=id(self.component),**self.__dict__)
         return formatted
 
@@ -351,6 +345,7 @@ class OutputPort(Port):
     def __init__(self, *args, **kwargs):
         super(OutputPort, self).__init__(*args, **kwargs)
 
+
     async def receive_packet(self):
         raise OutputOnlyError(self)
 
@@ -358,7 +353,7 @@ class OutputPort(Port):
         packet = EndOfStream()
         packet.owner = self.component
         await self.send_packet(packet)
-        await asyncio.wait([conn.queue.join() for conn in self.connections], return_when=asyncio.ALL_COMPLETED)
+        # await asyncio.wait([conn.queue.join() for conn in self.connections], return_when=asyncio.ALL_COMPLETED)
         self.open = False
         self.log.debug("Closing {}".format(self.name))
 
@@ -366,14 +361,27 @@ class OutputPort(Port):
         await self.close()
 
 
+
+# new_conn = Connection(size=size)
+#     new_conn.source = self
+#     new_conn.destination = other_port
+#     self.connections.append(new_conn)
+#     other_port.connections.append(new_conn)
+
+
 class InputPort(Port):
     def __init__(self, *args, **kwargs):
         super(InputPort, self).__init__(*args, **kwargs)
+        self.optional = False
+
+
 
     async def send_packet(self, packet):
         raise InputOnlyError(self)
 
     async def close(self):
+        if not self._iip:
+            await asyncio.wait([conn.queue.join() for conn in self.connections], return_when=asyncio.ALL_COMPLETED)
         self.open = False
         self.log.debug("closing {}".format(self.name))
 
@@ -390,6 +398,9 @@ class PortRegister:
 
     def add(self, port):
         self.add_as(port, port.name)
+
+    def remove(self, port_name):
+        self.ports.pop(port_name)
 
     def add_as(self, port, name):
         if port.component:

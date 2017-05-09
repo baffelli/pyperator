@@ -10,19 +10,23 @@ class SubIn(Component):
     """
     def __init__(self, name, **kwargs):
         super(SubIn, self).__init__(name, **kwargs)
-        self.inputs.add(InputPort('IN'))
+        self.inputs.add(InputPort('IN',  optional=False))
         self.outputs.add(OutputPort('OUT', optional=False))
 
 
     async def __call__(self):
+
         if self.inputs.IN._iip:
             pack = await self.inputs.IN.receive_packet()
-            await self.outputs.OUT.send_packet(pack.copy())
-            await self.outputs.OUT.close()
-        else:
-           async for pack in self.inputs.IN:
+            while True:
                 await self.outputs.OUT.send_packet(pack.copy())
-                await asyncio.sleep(0)
+                # await self.outputs.OUT.close()
+                asyncio.sleep(0)
+        else:
+           while True:
+                pack = await self.inputs.IN.receive_packet()
+                await self.outputs.OUT.send_packet(pack.copy())
+                asyncio.sleep(0)
 
 class SubOut(SubIn):
     """
@@ -34,7 +38,6 @@ class SubOut(SubIn):
 
     async def __call__(self):
        async for pack in self.inputs.IN:
-            print(pack)
             await self.outputs.OUT.send_packet(pack.copy())
             await asyncio.sleep(0)
 
@@ -67,9 +70,11 @@ class Subnet(Component):
                 #Remove input port
                 g.inputs.export(sub.inputs.IN, in_name)
                 # connect subin and real port
-                sg.connect(sub.outputs.OUT, in_port)
+                for end in in_port.iterends():
+                    print(end)
+                    sg.connect(sub.outputs.OUT, end)
             for (out_name, out_port) in sg.outputs.items():
-                #Now add a SubIn
+                #Now add a SubOut
                 sub = SubOut('out_'+out_name)
                 sg._nodes.add(sub)
                 #Export the subin
