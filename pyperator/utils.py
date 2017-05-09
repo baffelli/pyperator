@@ -100,14 +100,14 @@ class Port:
     .. _noflo: https://github.com/noflo/noflo/issues/90
     """
 
-    def __init__(self, name, size=-1, component=None, optional=False):
+    def __init__(self, name, size=-10, component=None, optional=False):
         self.name = name
         self.size = size
         self.component = component
         self.other = []
         self.queue = asyncio.Queue(maxsize=size)
         self.open = True
-        self._iip = False
+        self._iip = None
         #if set to true, the port must be connected
         #before the component can be used
         self.optional=optional
@@ -122,6 +122,7 @@ class Port:
 
     def set_initial_packet(self, value):
         packet = InformationPacket(value, owner=self.component)
+        self.queue.put_nowait(packet)
         self._iip = packet
         # for other in self.other:
         #     other.set_initial_packet(value)
@@ -193,6 +194,8 @@ class Port:
                     if other.open:
                         self.log.debug(
                             "Sending {} to {}".format(str(packet), self.name))
+                        if other.queue.full():
+                            self.log.error('Component {}: the queue of {} is full'.format(self.component.name, other.name))
                         await other.queue.put(packet)
                     else:
                         raise PortClosedError()
@@ -224,7 +227,9 @@ class Port:
                     self.queue.task_done()
                 else:
                     packet = self._iip
+                    # self.queue.task_done()
                     self.log.debug("Receiving IIP at {}".format(self.name))
+                    await self.close()
                     # self.open = False
                 self.log.debug(
                     "Received {} from {}".format(packet, self.name))
@@ -252,7 +257,7 @@ class Port:
             raise StopAsyncIteration
 
     async def __aenter__(self):
-        await asyncio.sleep(0)
+        return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
@@ -315,7 +320,7 @@ class OutputPort(Port):
 
 class InputPort(Port):
     def __init__(self, *args, **kwargs):
-        super(InputPort, self).__init__(*args, optional=False, **kwargs)
+        super(InputPort, self).__init__(*args, **kwargs)
 
     async def send_packet(self, packet):
         raise InputOnlyError(self)
@@ -352,7 +357,7 @@ class PortRegister:
         self.ports.update({name: port})
 
     def __getitem__(self, item):
-        if item in self.ports:
+        if item in self.ports.keys():
             return self.ports.get(item)
         else:
             raise PortNotExistingError(self.component, str(item))
@@ -367,7 +372,7 @@ class PortRegister:
         return self.ports.__len__()
 
     def __str__(self):
-        return "{component}: {ports}".format(component=self.component, ports=list(self.ports.values()))
+        return "{component}: {ports}".format(component=self.component, ports=list(self.ports.items()))
 
 
 
@@ -395,11 +400,12 @@ class PortRegister:
         futures = {}
         packets = {}
         for p in self.values():
-            if p.open:
-                futures[p.name] = asyncio.ensure_future(p.receive_packet())
-        for k, v in futures.items():
-            data = await v
-            packets[k] = data
+            packets[p.name] = await p.receive_packet()
+        #     if p.open:
+        #         futures[p.name] = asyncio.ensure_future(p.receive_packet())
+        # for k, v in futures.items():
+        #     data = await v
+        #     packets[k] = data
         return packets
 
     def __aiter__(self):
