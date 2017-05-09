@@ -11,6 +11,8 @@ from pyperator import nodes
 from pyperator import exceptions
 from pyperator import logging as _log
 
+from abc import ABCMeta, abstractmethod
+from pyperator.utils import PortRegister, FilePort
 
 from threading import Thread
 
@@ -18,41 +20,40 @@ from threading import Thread
 import warnings as _warn
 import itertools as _iter
 
-# class Graph(metaclass=ABCMeta):
-#     """
-#     This is the abstract graph from which the different types of graphs
-#     used by pyperator are derived
-#     """
-#
-#     @abstractmethod
-#     def iternodes(self):
-#         """
-#         This methods is a generator
-#         that yields all the nodes in the graph
-#
-#         :return:
-#         A generator objects iterating over the nodes
-#         """
-#         pass
-#
-#     @abstractmethod
-#     def iterarcs(self):
-#         """
-#         Generator that yields all arcs in the graph
-#
-#         :return:
-#         A generator object that yields pairs of `(source, dest)`
-#         """
-#         pass
-#
-#     @abstractmethod
-#     async def __call__(self):
-#         pass
+class Graph(metaclass=ABCMeta):
+    """
+    This is the abstract graph from which the different types of graphs
+    used by pyperator are derived
+    """
+
+    @abstractmethod
+    def iternodes(self):
+        """
+        This methods is a generator
+        that yields all the nodes in the graph
+
+        :return:
+        A generator objects iterating over the nodes
+        """
+        pass
+
+    @abstractmethod
+    def iterarcs(self):
+        """
+        Generator that yields all arcs in the graph
+
+        :return:
+        A generator object that yields pairs of `(source, dest)`
+        """
+        pass
+
+    @abstractmethod
+    async def __call__(self):
+        pass
 #
 #
 # class BipartiteGraph(Graph):
 #     pass
-
 
 
 def run_in_different_thread(tasks):
@@ -61,10 +62,7 @@ def run_in_different_thread(tasks):
     asyncio.set_event_loop(second_loop)
     [second_loop.create_task(task()) for task in tasks]
     pending = asyncio.Task.all_tasks(second_loop)
-    print(pending)
     second_loop.run_until_complete(asyncio.gather(*pending))
-    print(pending)
-
     return second_loop
 
 
@@ -87,7 +85,7 @@ def check_connections(graph):
 
 
 
-class Multigraph(nodes.Component):
+class Multigraph(Graph):
     """
     This is a Multigraph, used to represent a FBP-style network.
     In this cases, components are of type :class:`pyperator.nodes.AbstractComponent`. This
@@ -99,13 +97,15 @@ class Multigraph(nodes.Component):
     """
 
     def __init__(self, name, log=None, log_level=logging.DEBUG, workdir=None):
-        super(Multigraph, self).__init__(name)
         self._nodes = set()
-        self._name = name
+        self.name = name
         self.workdir = workdir or './'
-        self._log_path = None or log
-        self._log = _log.setup_custom_logger(self.name, file=self._log_path, level=log_level)
+        self.log_path = None or log
+        self.log = _log.setup_custom_logger(self.name, file=self.log_path, level=log_level)
         self.log.info("Created DAG {} with workdir {}".format(self.name, self.workdir))
+        self.inputs = PortRegister(self)
+        self.outputs = PortRegister(self)
+
 
 
     @property
@@ -124,16 +124,9 @@ class Multigraph(nodes.Component):
     def connect(self, port1, port2):
         # Add nodes that are not in the node list
         self.log.debug("DAG {}: Connecting {} to {}".format(self.name, port1, port2))
-        for port in [port1, port2]:
-            try:
-                # Add log to every component
-                port.component.dag = self
-                port.component._log = self.log
-                if not self.hasnode(port.component):
-                    self._nodes.add(port.component)
-            except:
-                raise exceptions.PortNotExistingError('Port {} does not exist'.format(port))
-                self.log.ERROR("Port {} does not exist".format(port))
+        # for port in [port1, port2]:
+        #     if not self.hasnode(port.component):
+        #        raise ValueError('Node not in this graph')
         port1.connect(port2)
         # self._arcs.update(port1.connect_dict)
 
@@ -145,8 +138,6 @@ class Multigraph(nodes.Component):
 
     def add_node(self, node):
         node.dag = self
-        node._log = self._log
-
         self._nodes.add(node)
         return node
 
@@ -164,11 +155,11 @@ class Multigraph(nodes.Component):
     def hasnode(self, node):
         return node in self._nodes
 
-    def disconnect(self, node1: nodes.Component, node2: nodes.Component ):
-        # TODO implement it
-        pass
+    # def disconnect(self, node1: nodes.Component, node2: nodes.Component ):
+    #     # TODO implement it
+    #     pass
 
-    def iternodes(self) -> nodes.Component:
+    def iternodes(self):
         """
         Iterate all nodes in the DAG.
         By delegating the inner iteration to the instances of
@@ -179,7 +170,7 @@ class Multigraph(nodes.Component):
         :yields: `pyperator.nodes.Component` 
         """
         for node in self._nodes:
-            yield from node.iternodes()
+            yield node
 
     def iterarcs(self):
         for source in self.iternodes():
@@ -196,7 +187,6 @@ class Multigraph(nodes.Component):
 
     # Context manager
     def __enter__(self):
-        global _global_dag
         self._old_dag = context._global_dag
         context._global_dag = self
         return self
@@ -205,8 +195,13 @@ class Multigraph(nodes.Component):
         context._global_dag = self._old_dag
 
     # /Context manager
-
     def __repr__(self):
+        if self.name:
+            return "{}".format(self.name)
+        else:
+            return 'a'
+
+    def __str__(self):
         arc_str = ("{} -> {}".format(s.gv_string(), v.gv_string()) for s, v in self.iterarcs())
         out_str = "\n".join(arc_str)
         return out_str
@@ -264,7 +259,7 @@ class Multigraph(nodes.Component):
             tasks = [loop.create_task(node()) for node in self.iternodes()]
             loop.run_until_complete(asyncio.gather(*tasks))
         except StopAsyncIteration as e:
-            self.log.info('Received EOS')
+            self.log.info(e)
         except Exception as e:
             self.log.exception(e)
             self.log.info('Stopping DAG by cancelling scheduled tasks')
