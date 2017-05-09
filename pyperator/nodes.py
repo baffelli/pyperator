@@ -47,13 +47,6 @@ class Component(AbstractComponent):
     def type_str(self):
         return type(self).__name__
 
-    # @property
-    # def name(self):
-    #     if self.dag:
-    #         return self.dag.name + '.' + self._name
-    #     else:
-    #         return self._name
-
 
     @property
     def log(self):
@@ -162,6 +155,12 @@ class Component(AbstractComponent):
         self.outputs.add(port)
         return self
 
+    async def run(self):
+        while True:
+            async with self as a:
+                await self()
+                await asyncio.sleep(0)
+
     async def __call__(self):
         pass
 
@@ -169,6 +168,20 @@ class Component(AbstractComponent):
         yield self
 
 
+    def __await__(self):
+        return self.__aenter__().__await__()
+
+    async def __aenter__(self):
+        self.log.debug('Entering {}'.format(self.name))
+        if self.inputs.all_closed():
+            self.log.debug('All inputs port of {} are closed, returning'.format(self.name))
+            raise StopAsyncIteration()
+        else:
+            return self.__aenter__().__await__
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.log.debug('Exiting {}'.format(self.name))
+        pass
 
     @property
     def n_in(self):

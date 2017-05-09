@@ -261,10 +261,10 @@ class Multigraph(nodes.Component):
         self.log.info('Starting DAG')
         self.log.info('has following nodes {}'.format(list(self.iternodes())))
         try:
-            tasks = [loop.create_task(node()) for node in self.iternodes()]
+            tasks = [loop.create_task(node.run()) for node in self.iternodes()]
             loop.run_until_complete(asyncio.gather(*tasks))
         except StopAsyncIteration as e:
-            self.log.info('Received EOS')
+            print("EOS")
         except Exception as e:
             self.log.exception(e)
             self.log.info('Stopping DAG by cancelling scheduled tasks')

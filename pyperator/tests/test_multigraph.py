@@ -287,15 +287,23 @@ class TestMultigraph(TestCase):
 
 
     def testSplit(self):
-        source1 = components.Product('s1', (i for i in range(3)),(i for i in range(3)),)
+        source1 = GeneratorSource('s1')
+        source2 = GeneratorSource('s2')
+        range(5) >> source1.inputs.gen
+        range(5) >> source2.inputs.gen
+        p = components.Product('prod')
+        p.inputs.add(InputPort('i'))
+        p.inputs.add(InputPort('j'))
         splitter = components.Split('split in two')
         splitter.outputs.add(OutputPort('a'))
         splitter.outputs.add(OutputPort('b'))
         shower = ShowInputs('printer')
         shower.inputs.add(InputPort('a'))
         shower.inputs.add(InputPort('b'))
-        graph = Multigraph()
-        graph.connect(source1.outputs.OUT, splitter.inputs.IN)
+        graph = Multigraph('test')
+        graph.connect(source1.outputs.OUT, p.inputs.i)
+        graph.connect(source2.outputs.OUT, p.inputs.j)
+        graph.connect(p.outputs.OUT, splitter.inputs.IN)
         graph.connect(splitter.outputs.a, shower.inputs.a)
         graph.connect(splitter.outputs.b, shower.inputs.b)
         graph()
@@ -474,11 +482,28 @@ class TestMultigraph(TestCase):
         p.inputs.add(InputPort('j'))
         p.outputs.add(OutputPort('OUT'))
         g = Multigraph('cul')
+        g.add_node(source1)
+        g.add_node(source2)
+        g.add_node(p)
+        g.add_node(printer)
         g.connect(source1.outputs.OUT, p.inputs.i)
         g.connect(source2.outputs.OUT, p.inputs.j)
         g.connect(p.outputs.OUT, printer.inputs.IN)
-        print(list(g.iterarcs()))
-        print(g.dot())
+        # print(list(g.iterarcs()))
+        # print(g.dot())
+        g()
+
+    def testEnterExit(self):
+        source1 = GeneratorSource('s1')
+        range(5) >> source1.inputs.gen
+        printer = ShowInputs('printer')
+        printer.inputs.add(InputPort('i'))
+        g = Multigraph('cul')
+        g.add_node(source1)
+        g.add_node(printer)
+        g.connect(source1.outputs.OUT, printer.inputs.i)
+        # print(list(g.iterarcs()))
+        # print(g.dot())
         g()
 
 
@@ -522,8 +547,6 @@ class TestMultigraph(TestCase):
             g.connect(source2.outputs.OUT, p.inputs.j)
             g.connect(p.outputs.OUT, c.inputs.IN)
             g.connect(c.outputs.count, printer.inputs.IN)
-        print(list(g.iterarcs()))
-        print(g.dot())
         g()
 
     def testSubnet(self):
