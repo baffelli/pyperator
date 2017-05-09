@@ -3,3 +3,4 @@ from pyperator.nodes import Component
 from pyperator.DAG import Multigraph
 from pyperator.utils import InputPort, OutputPort
 import pyperator.components
+from pyperator.subnet import Subnet
