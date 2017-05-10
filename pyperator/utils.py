@@ -1,14 +1,13 @@
+import abc as _abc
 import asyncio
-import logging
 import re as _re
 from collections import OrderedDict as _od
 from collections import namedtuple as nt
-import abc as _abc
 
 import pyperator.exceptions
 from pyperator.IP import InformationPacket, EndOfStream
 from pyperator.exceptions import PortNotExistingError, PortDisconnectedError, OutputOnlyError, InputOnlyError, \
-    PortClosedError, PortAlreadyConnectedError, PortAlreadyExistingError
+    PortClosedError, PortAlreadyExistingError
 
 # Constraint for regex (from snakemake)
 regex_wildcards = _re.compile(
@@ -94,6 +93,10 @@ class ConnectionInterface(metaclass=_abc.ABCMeta):
             return -1
 
 
+    def __str__(self):
+       return  "{} -> {}".format(*map(str,self.source), *map(str,self.destination))
+
+
 class Connection(ConnectionInterface):
     """
     This class represent a limited capacity
@@ -167,12 +170,17 @@ class PortInterface(metaclass=_abc.ABCMeta):
     def __init__(self, name, component=None, optional=False):
         self.name = name  # the name of the port
         self.component = component  # the component the port resides on
-        self.connections = []
         self.open = True  # wether it is open or not
         self._iip = None  # if it hold an iip
         # if set to true, the port must be connected
         # before the component can be used
         self.optional = optional
+        #the connections of this port
+        self.connections = []
+
+
+
+
 
     @_abc.abstractmethod
     async def receive_packet(self):
@@ -256,7 +264,7 @@ class PortInterface(metaclass=_abc.ABCMeta):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    def __repr__(self):
+    def __str__(self):
         port_template = "{type} {name} on {component.name}"
         formatted = port_template.format(type=self.__class__.__name__, **self.__dict__)
         return formatted
@@ -458,8 +466,9 @@ class PortInterface(metaclass=_abc.ABCMeta):
 class OutputPort(PortInterface):
     def __init__(self, *args, **kwargs):
         super(OutputPort, self).__init__(*args, **kwargs)
+        self.connections = []
 
-    def connect(self, other, size=100):
+    def connect(self, other, size=-1):
         new_conn = Connection()
         new_conn.connect(self, other, size=size)
         self.connections.append(new_conn)
@@ -504,11 +513,12 @@ class OutputPort(PortInterface):
 class InputPort(PortInterface):
     def __init__(self, *args, **kwargs):
         super(InputPort, self).__init__(*args, **kwargs)
+        self.connections = []
 
-    def connect(self, other, size=100):
+    def connect(self, other, size=-1):
         new_conn = Connection()
         new_conn.connect(other, self, size=size)
-        other.connections.append(new_conn)
+        self.connections.append(new_conn)
 
     def set_initial_packet(self, value):
         packet = InformationPacket(value, owner=self.component)
@@ -554,9 +564,6 @@ class InputPort(PortInterface):
             await asyncio.wait([conn._queue.join() for conn in self.connections], return_when=asyncio.ALL_COMPLETED)
         self.open = False
         self.log.debug("closing {}".format(self.name))
-
-
-
 
 
 class ArrayPort(PortInterface):
