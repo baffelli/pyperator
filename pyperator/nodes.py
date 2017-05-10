@@ -2,7 +2,7 @@ import asyncio
 from abc import ABCMeta, abstractmethod
 
 from pyperator import IP
-from pyperator.utils import PortRegister, FilePort
+from pyperator.utils import PortRegister
 import pyperator.logging as _log
 import pyperator.context
 
@@ -48,13 +48,6 @@ class Component(AbstractComponent):
 
     def type_str(self):
         return type(self).__name__
-
-    # @property
-    # def name(self):
-    #     if self.dag:
-    #         return self.dag.name + '.' + self._name
-    #     else:
-    #         return self._name
 
 
     @property
