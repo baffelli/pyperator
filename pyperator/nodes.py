@@ -39,6 +39,7 @@ class Component(AbstractComponent):
         #The component has a number
         #of owned packets
         self._owned_packets = set()
+        self.task = None
 
 
     def register_packet(self, packet):
@@ -170,6 +171,16 @@ class Component(AbstractComponent):
         """
         self.outputs.add(port)
         return self
+
+    async def stop(self):
+        self.log.warning('Trying to stop')
+        # if self.n_owned_packets ==0:
+        if self.inputs.all_closed():
+            # self.task.cancel()
+            raise StopAsyncIteration("Stopped {}".format(self.name))
+        else:
+            self.log.warning('Not all upstream ports are closed, waiting before stopping')
+            await asyncio.sleep(0)
 
     async def __call__(self):
         pass
