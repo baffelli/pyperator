@@ -36,7 +36,19 @@ class Component(AbstractComponent):
         self.dag = pyperator.context._global_dag or None
         if self.dag:
             self.dag.add_node(self)
+        #The component has a number
+        #of owned packets
+        self._owned_packets = set()
 
+
+    def register_packet(self, packet):
+        if packet.owner is None:
+            packet.owner = self
+        self._owned_packets.add(packet)
+
+    def deregister_packet(self, packet):
+        if packet in self._owned_packets:
+            self._owned_packets.remove(packet)
 
     def __repr__(self):
         st = "{}".format(self.name)
