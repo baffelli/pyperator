@@ -11,7 +11,7 @@ class InformationPacket(object):
         del self
 
     def __str__(self):
-        return "{} owned by {}, payload {}, payload type {}".format(self.__repr__(), self.owner, self.value.__repr__(), type(self.value))
+        return "Packet[owner:{}, payload type:{}]".format(self.owner, self.value.__class__.__name__)
 
     @property
     def value(self):
@@ -68,7 +68,7 @@ class OpenBracket(InformationPacket):
     def __init__(self, owner=None):
         super(OpenBracket, self).__init__(value=None, owner=owner)
 
-    def __repr__(self):
+    def __str__(self):
         return "("
 
 
@@ -76,5 +76,5 @@ class CloseBracket(InformationPacket):
     def __init__(self, owner=None):
         super(CloseBracket, self).__init__(value=None, owner=owner)
 
-    def __repr__(self):
+    def __str__(self):
         return ")"
