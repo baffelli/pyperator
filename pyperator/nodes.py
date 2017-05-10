@@ -50,6 +50,10 @@ class Component(AbstractComponent):
         if packet in self._owned_packets:
             self._owned_packets.remove(packet)
 
+    @property
+    def n_owned_packets(self):
+        return len(self._owned_packets)
+
     def __repr__(self):
         st = "{}".format(self.name)
         return st

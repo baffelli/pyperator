@@ -181,7 +181,7 @@ class PortInterface(metaclass=_abc.ABCMeta):
     def __init__(self, name, component=None, optional=False):
         self.name = name  # the name of the port
         self.component = component  # the component the port resides on
-        self.open = True  # wether it is open or not
+        self._open = True  # wether it is open or not
         self._iip = None  # if it hold an iip
         # if set to true, the port must be connected
         # before the component can be used
@@ -192,6 +192,13 @@ class PortInterface(metaclass=_abc.ABCMeta):
     def disconnect_all(self):
         self.connections = set()
 
+    @property
+    def open(self):
+        return self._open
+
+    @open.setter
+    def open(self, value):
+        self._open = value
 
     @_abc.abstractmethod
     async def receive_packet(self):
@@ -493,7 +500,6 @@ class OutputPort(PortInterface):
                                                    return_when=asyncio.ALL_COMPLETED)
                 self.log.debug(
                     "Sending {} from port {}".format(str(packet), self.name))
-
             else:
                 error_message = "Packet {} is not owned by this component, copy it first".format(str(packet), self.name)
                 e = pyperator.exceptions.PacketOwnedError(error_message)
@@ -550,7 +556,10 @@ class InputPort(PortInterface):
                 done, pending = await asyncio.wait([conn.receive() for conn in self.connections],
                                                    return_when=asyncio.FIRST_COMPLETED)
                 # The first packet is taken
-                packet = done.pop().result()
+                packet = done.pop().result().copy()
+                #Now the packet will be copied in
+                #the list of packets owned by component
+                self.component.register_packet(packet)
                 # Cancel all other tasks
                 [task.cancel() for task in pending]
                 self.log.debug(
@@ -558,9 +567,9 @@ class InputPort(PortInterface):
                 if self._iip:
                     await self.close()
                 if packet.is_eos:
-                    await self.close()
                     stop_message = "Stopping because {} was received".format(packet)
                     self.log.info(stop_message)
+                    await self.close()
                     raise StopAsyncIteration(stop_message)
                 else:
                     return packet
