@@ -554,7 +554,7 @@ class InputPort(PortInterface):
                 # Cancel all other tasks
                 [task.cancel() for task in pending]
                 self.log.debug(
-                    "Received {} from {}".format(packet, self.name))
+                    "Received {} from port {}".format(str(packet), self.name))
                 if self._iip:
                     await self.close()
                 if packet.is_eos:
