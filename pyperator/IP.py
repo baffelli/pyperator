@@ -8,6 +8,8 @@ class InformationPacket(object):
         self._owner = owner
 
     def drop(self):
+        if self.owner:
+            self.owner.deregister_packet(self)
         del self
 
     def __str__(self):
@@ -49,8 +51,8 @@ class EndOfStream(InformationPacket):
     """
     End of stream packet, to signal end of computation
     """
-    def __init__(self):
-        super(EndOfStream, self).__init__(None)
+    def __init__(self, **kwargs):
+        super(EndOfStream, self).__init__(None, **kwargs)
 
     @property
     def is_eos(self):
@@ -58,6 +60,9 @@ class EndOfStream(InformationPacket):
 
     def __str__(self):
         return "EOS"
+
+    def copy(self):
+        return EndOfStream(owner=None)
 
 
 
@@ -71,6 +76,9 @@ class OpenBracket(InformationPacket):
     def __str__(self):
         return "("
 
+    def copy(self):
+        return OpenBracket(owner=None)
+
 
 class CloseBracket(InformationPacket):
     def __init__(self, owner=None):
@@ -78,3 +86,6 @@ class CloseBracket(InformationPacket):
 
     def __str__(self):
         return ")"
+
+    def copy(self):
+        return CloseBracket(owner=None)
