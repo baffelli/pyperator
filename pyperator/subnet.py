@@ -70,22 +70,28 @@ class Subnet(Component):
                 #Now add a SubIn
                 sub = SubIn('in_'+in_name)
                 sg._nodes.add(sub)
-                #Remove input port
+                #export
                 g.inputs.export(sub.inputs.IN, in_name)
+                assert g.inputs[in_name] == sub.inputs.IN
                 # connect subin and real port
-                for end in in_port.iterends():
-                    sg.connect(sub.outputs.OUT, end)
+                conns = in_port.connections
+                in_port.disconnect_all()
+                for conn in conns:
+                    for end in conn.source:
+                        sub.outputs.OUT.connect(end)
+                assert sub.outputs.OUT.is_connected
             for (out_name, out_port) in sg.outputs.items():
                 #Now add a SubOut
                 sub = SubOut('out_'+out_name)
                 sg._nodes.add(sub)
                 #Export the subin
-
-                #connect subin and real port
-                for end in out_port.itersources():
-                    sg.connect(end,sub.inputs.IN)
                 g.outputs.export(sub.outputs.OUT, out_name)
-                # sg.connect(out_port, sub.inputs.IN)
+                assert g.outputs[out_name] == sub.outputs.OUT
+                conns = out_port.connections
+                out_port.disconnect_all()
+                for conn in conns:
+                    for end in conn.destination:
+                        end.connect(sub.inputs.IN)
             g.subgraph = sg
             g.subgraph.log = g.dag.log.getChild(g.name)
 
@@ -97,7 +103,6 @@ class Subnet(Component):
         self.log.info("Component {} is a subnet, it will add its nodes to the"
                       " current executor.".format(self.name))
         for node in self.subgraph.iternodes():
-            print(node)
             self.dag.loop.create_task(node())
 
 

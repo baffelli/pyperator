@@ -94,7 +94,7 @@ class ConnectionInterface(metaclass=_abc.ABCMeta):
 
 
     def __str__(self):
-       return  "{} -> {}".format(*map(str,self.source), *map(str,self.destination))
+       return  "{} -> {}".format(self.source, self.destination)
 
 
 class Connection(ConnectionInterface):
@@ -138,7 +138,18 @@ class Connection(ConnectionInterface):
             self.source.add(source)
             self.destination.add(destination)
             self._queue = asyncio.Queue(maxsize=size)
-        destination.connections.append(self)
+        destination.connections.add(self)
+        source.connections.add(self)
+
+    def disconnect(self):
+        # if source in self.source:
+        #     self.source.remove(source)
+        # if destination in self.destination:
+        #     self.destination.remove(destination)
+        for destination in self.destination:
+            destination.connections.remove(self)
+        for source in self.source:
+            source.connections.remove(self)
 
 
 class IIPConnection(ConnectionInterface):
@@ -148,17 +159,17 @@ class IIPConnection(ConnectionInterface):
         self.n_rec = 1
 
     async def receive(self):
-        if self.n_rec <= 0:
-            return EndOfStream()
-        else:
-            self.n_rec -= 1
+        # if self.n_rec <= 0:
+        #     return EndOfStream()
+        # else:
+        #     self.n_rec -= 1
             return self.value
 
     async def send(self):
         raise NotImplementedError
 
     def connect(self, destination, size=-1):
-        self.source = self
+        self.source = set([self.value])
         self.destination.add(destination)
 
 
@@ -176,10 +187,10 @@ class PortInterface(metaclass=_abc.ABCMeta):
         # before the component can be used
         self.optional = optional
         #the connections of this port
-        self.connections = []
+        self.connections = set()
 
-
-
+    def disconnect_all(self):
+        self.connections = set()
 
 
     @_abc.abstractmethod
@@ -232,7 +243,7 @@ class PortInterface(metaclass=_abc.ABCMeta):
         """
         try:
             self.connect(other)
-        except:
+        except Exception as e:
             self.set_initial_packet((other))
 
     def __rrshift__(self, other):
@@ -466,12 +477,11 @@ class PortInterface(metaclass=_abc.ABCMeta):
 class OutputPort(PortInterface):
     def __init__(self, *args, **kwargs):
         super(OutputPort, self).__init__(*args, **kwargs)
-        self.connections = []
 
     def connect(self, other, size=-1):
         new_conn = Connection()
         new_conn.connect(self, other, size=size)
-        self.connections.append(new_conn)
+
 
     async def receive_packet(self):
         raise OutputOnlyError(self)
@@ -493,6 +503,7 @@ class OutputPort(PortInterface):
             ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
             packet.drop()
             self.log.debug(ex_str)
+            await asyncio.sleep(0)
         else:
             e = PortDisconnectedError(self)
             self.log.error(e)
@@ -513,19 +524,22 @@ class OutputPort(PortInterface):
 class InputPort(PortInterface):
     def __init__(self, *args, **kwargs):
         super(InputPort, self).__init__(*args, **kwargs)
-        self.connections = []
 
     def connect(self, other, size=-1):
         new_conn = Connection()
         new_conn.connect(other, self, size=size)
-        self.connections.append(new_conn)
 
     def set_initial_packet(self, value):
         packet = InformationPacket(value, owner=self.component)
         conn = IIPConnection(packet)
         conn.connect(self)
-        self.connections.append(conn)
+        self.connections.add(conn)
         self._iip = True
+
+    def disconnect_all(self):
+        for c in self.connections:
+            c.destination.remove(self)
+        self.connections =[]
 
     async def receive_packet(self):
         if self.is_connected:
@@ -540,8 +554,8 @@ class InputPort(PortInterface):
                 [task.cancel() for task in pending]
                 self.log.debug(
                     "Received {} from {}".format(packet, self.name))
-                if self._iip:
-                    await self.close()
+                # if self._iip:
+                #     await self.close()
                 if packet.is_eos:
                     await self.close()
                     stop_message = "Stopping because {} was received".format(packet)
