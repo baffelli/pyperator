@@ -8,7 +8,7 @@ import functools
 
 from pyperator import IP
 from pyperator.nodes import Component
-from pyperator.utils import InputPort, OutputPort, FilePort
+from pyperator.utils import InputPort, OutputPort
 from pyperator.decorators import log_schedule, component, inport, outport
 
 
@@ -77,7 +77,7 @@ class GlobSource(Component):
             await self.outputs.OUT.send_packet(p)
             await asyncio.sleep(0)
         stop_message = "exahusted list of files"
-        self._log.info(stop_message)
+        self.log.info(stop_message)
         await self.close_downstream()
 
 
@@ -101,7 +101,8 @@ class Product(Component):
         all_packets = {k: [] for k in self.inputs.keys()}
         async for packet_dict in self.inputs:
             for port, packet in packet_dict.items():
-                all_packets[port].append(packet)
+                all_packets[port].append(packet.copy())
+                packet.drop()
         async with self.outputs.OUT:
             for it, p in enumerate(self._fun(all_packets.values())):
                 # Create substream
@@ -175,13 +176,15 @@ class Split(Component):
                 data = []
             elif isinstance(packet, IP.CloseBracket):
                 packet.drop()
-                self._log.debug(
+                self.log.debug(
                     "Splitting '{}'".format(data))
                 for (output_port_name, output_port), out_packet in zip(self.outputs.items(), data):
                     await output_port.send_packet(out_packet.copy())
+                    out_packet.drop()
+                    await asyncio.sleep(0)
             else:
                 data.append(packet)
-                await asyncio.sleep(0)
+            await asyncio.sleep(0)
         await asyncio.sleep(0)
 
 
@@ -332,7 +335,8 @@ class ShowInputs(Component):
         while True:
             packets = await self.receive_packets()
             show_str = "Component {} saw:\n".format(self.name) + "\n".join([str(p) for p in packets.values()])
-            self._log.debug(show_str)
+            [p.drop() for p in packets.values()]
+            self.log.debug(show_str)
             print(show_str)
 
 @outport('OUT')
@@ -388,9 +392,6 @@ async def Count(self):
         while True:
             pack = await self.inputs.IN.receive_packet()
             count += 1
-            reset = await self.inputs.reset.receive()
-            if reset:
-                count = 0
             await self.outputs.count.send(count)
             await asyncio.sleep(0)
 
