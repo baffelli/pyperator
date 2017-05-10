@@ -12,7 +12,7 @@ from pyperator import exceptions
 from pyperator import logging as _log
 
 from abc import ABCMeta, abstractmethod
-from pyperator.utils import PortRegister, FilePort
+from pyperator.utils import PortRegister
 
 from threading import Thread
 
