@@ -101,7 +101,8 @@ class Subnet(Component):
         self.log.info("Component {} is a subnet, it will add its nodes to the"
                       " current executor.".format(self.name))
         for node in self.subgraph.iternodes():
-            self.dag.loop.create_task(node())
+            task = self.dag.loop.create_task(node())
+            node.task = task
 
 
 

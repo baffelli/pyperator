@@ -256,10 +256,16 @@ class Multigraph(Graph):
         self.log.info('Starting DAG')
         self.log.info('has following nodes {}'.format(list(self.iternodes())))
         try:
-            tasks = [loop.create_task(node()) for node in self.iternodes()]
+            tasks = []
+            for node in self.iternodes():
+                task =  loop.create_task(node())
+                node.task  = task
+                tasks.append(task)
             loop.run_until_complete(asyncio.gather(*tasks))
         except StopAsyncIteration as e:
-            self.log.info(e)
+            pass
+        except asyncio.CancelledError as e:
+            print('Task')
         except Exception as e:
             self.log.exception(e)
             self.log.info('Stopping DAG by cancelling scheduled tasks')
