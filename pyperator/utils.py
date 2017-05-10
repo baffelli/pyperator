@@ -159,10 +159,10 @@ class IIPConnection(ConnectionInterface):
         self.n_rec = 1
 
     async def receive(self):
-        # if self.n_rec <= 0:
-        #     return EndOfStream()
-        # else:
-        #     self.n_rec -= 1
+        if self.n_rec <= 0:
+            return EndOfStream()
+        else:
+            self.n_rec -= 1
             return self.value
 
     async def send(self):
@@ -487,7 +487,7 @@ class OutputPort(PortInterface):
         raise OutputOnlyError(self)
 
     async def send_packet(self, packet):
-        if self.is_connected and not self.optional:
+        if self.is_connected:
             if packet.owner == self.component or packet.owner == None:
                 done, pending = await asyncio.wait([conn.send(packet) for conn in self.connections],
                                                    return_when=asyncio.ALL_COMPLETED)
@@ -499,15 +499,16 @@ class OutputPort(PortInterface):
                 e = pyperator.exceptions.PacketOwnedError(error_message)
                 self.log.error(e)
                 raise e
-        elif not self.is_connected and self.optional:
-            ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
-            packet.drop()
-            self.log.debug(ex_str)
-            await asyncio.sleep(0)
         else:
-            e = PortDisconnectedError(self)
-            self.log.error(e)
-            raise e
+            if self.optional:
+                ex_str = '{} is not connected, output packet will be dropped'.format(self.name)
+                packet.drop()
+                self.log.debug(ex_str)
+                await asyncio.sleep(0)
+            else:
+                e = PortDisconnectedError(self)
+                self.log.error(e)
+                raise e
 
     async def close(self):
         packet = EndOfStream()
@@ -554,8 +555,8 @@ class InputPort(PortInterface):
                 [task.cancel() for task in pending]
                 self.log.debug(
                     "Received {} from {}".format(packet, self.name))
-                # if self._iip:
-                #     await self.close()
+                if self._iip:
+                    await self.close()
                 if packet.is_eos:
                     await self.close()
                     stop_message = "Stopping because {} was received".format(packet)
@@ -566,9 +567,12 @@ class InputPort(PortInterface):
             else:
                 raise PortClosedError(self)
         else:
-            e = PortDisconnectedError(self, 'disc')
-            self.log.error(e)
-            raise e
+            if self.optional:
+                await asyncio.sleep(0)
+            else:
+                e = PortDisconnectedError(self, 'disc')
+                self.log.error(e)
+                raise e
 
     async def send_packet(self, packet):
         raise InputOnlyError(self)
