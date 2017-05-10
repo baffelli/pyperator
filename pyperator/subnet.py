@@ -15,18 +15,16 @@ class SubIn(Component):
 
 
     async def __call__(self):
-
         if self.inputs.IN._iip:
             pack = await self.inputs.IN.receive_packet()
-            while True:
-                await self.outputs.OUT.send_packet(pack.copy())
-                # await self.outputs.OUT.close()
-                asyncio.sleep(0)
+            await self.outputs.OUT.send_packet(pack.copy())
+            await asyncio.sleep(0)
+            await self.outputs.OUT.close()
         else:
-           while True:
+            while True:
                 pack = await self.inputs.IN.receive_packet()
                 await self.outputs.OUT.send_packet(pack.copy())
-                asyncio.sleep(0)
+                await asyncio.sleep(0)
 
 class SubOut(Component):
     """
@@ -39,10 +37,10 @@ class SubOut(Component):
         self.outputs.add(OutputPort('OUT', optional=True))
 
     async def __call__(self):
-       while True:
-            pack = await self.inputs.IN.receive_packet()
-            await self.outputs.OUT.send_packet(pack.copy())
-            await asyncio.sleep(0)
+        async with self.outputs.OUT as outp:
+            async for pack in self.inputs.IN:
+                await outp.send_packet(pack.copy())
+                await asyncio.sleep(0)
 
 
 class Subnet(Component):
@@ -78,7 +76,7 @@ class Subnet(Component):
                 in_port.disconnect_all()
                 for conn in conns:
                     for end in conn.source:
-                        sub.outputs.OUT.connect(end)
+                        sg.connect(sub.outputs.OUT, end)
                 assert sub.outputs.OUT.is_connected
             for (out_name, out_port) in sg.outputs.items():
                 #Now add a SubOut
@@ -90,8 +88,8 @@ class Subnet(Component):
                 conns = out_port.connections
                 out_port.disconnect_all()
                 for conn in conns:
-                    for end in conn.destination:
-                        end.connect(sub.inputs.IN)
+                    for end in conn.source:
+                        sg.connect(end,sub.inputs.IN)
             g.subgraph = sg
             g.subgraph.log = g.dag.log.getChild(g.name)
 
