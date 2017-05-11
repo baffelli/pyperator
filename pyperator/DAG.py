@@ -258,7 +258,7 @@ class Multigraph(Graph):
         try:
             tasks = []
             for node in self.iternodes():
-                task =  loop.create_task(node())
+                task =  asyncio.ensure_future(node(), loop=loop)
                 node.task  = task
                 tasks.append(task)
             loop.run_until_complete(asyncio.gather(*tasks))
