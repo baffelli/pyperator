@@ -141,6 +141,10 @@ class Multigraph(Graph):
         self._nodes.add(node)
         return node
 
+    def remove_node(self, node):
+        node.dag = None
+        self._nodes.remove(node)
+
     def __radd__(self, other):
         self.add_node(other)
         return self
