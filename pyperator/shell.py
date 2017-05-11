@@ -10,7 +10,8 @@ import re as _re
 
 
 from pyperator import IP
-from pyperator.decorators import log_schedule
+# from pyperator.decorators import log_schedule
+# import pyperator.decorators
 from pyperator.exceptions import FormatterError, FileNotExistingError, CommandFailedError
 from pyperator.nodes import Component
 from pyperator.utils import Wildcards, InputPort,OutputPort
@@ -61,6 +62,8 @@ def dynamic_filename(inputs, wildcards, pattern):
     :return: 
     """
     return pattern.format(inputs=inputs, wildcards=wildcards)
+
+
 
 
 def make_call(cmd, stderr, stdout):
@@ -286,17 +289,11 @@ class FileOperator(Component):
             out_packets[port] = IP.InformationPacket(_path.Path(path), owner=None)
         return PacketRegister(out_packets)
 
-    # def enumerate_newer(self, input_packets, output_packet):
-    #     newer = {}
-    #     for (out_port, out_packet), (inport, inpacket) in _iter.combinations(input_packets.items(), output_packet.items()):
-    #         if _os.path.getmtime(out_packet.path) < _os.path.getmtime(inpacket.path):
-
-
 
     def produce_outputs(self, input_packets, output_packets, wildcards):
         pass
 
-    @log_schedule
+    # @log_schedule
     async def __call__(self):
         while True:
             # Wait for all upstram to be completed
@@ -345,7 +342,6 @@ class FileOperator(Component):
                 new_out = out_packets
             await asyncio.wait(self.send_packets(out_packets.as_dict()))
             await asyncio.sleep(0)
-
 
 class Shell(FileOperator):
     """
@@ -403,3 +399,50 @@ class ShellScript(Shell):
         super(ShellScript, self).__init__(name, cmd, **kwargs)
         self.script = script
         self.log.info("Initialized to run script {}".format(self.name, script))
+
+
+class CachedFileOutput(FileOperator):
+    """
+    This component represents a cached long running 
+    proces which produces a final output in the form of a 
+    file. When the inner component in `component` is done, this component
+    will check wheter the files exists.
+    If the output exists,
+    the next time the component is started it will not be run.
+    """
+    def __init__(self,name, component):
+        super(CachedFileOutput, self).__init__(name)
+        #Remove the node if it is already added to the DAG
+        self.dag.remove_node(component)
+        self.component = component
+        self.inputs.add(InputPort('output_paths'))
+        #Mirror the components ports
+        for (in_name, in_port) in component.inputs.items():
+            self.inputs.export(in_port, in_name)
+        for (out_name, out_port) in component.outputs.items():
+            self.outputs.export(out_port, out_name)
+
+    async def __call__(self):
+        #REceive output_paths
+        outpath = await self.inputs.output_paths.receive()
+        #Add a port for each expected output to the object
+        for (output_name, path) in outpath.items():
+            if output_name in self.component.outputs:
+                self.component.outputs.add(OutputPort(output_name))
+                self.component.outputs[output_name].path = path
+        all_existing = not all([check_missing(output, self.dag.workdir) for output_name, output in outpath.items()])
+        if not all_existing:
+            self.log.warning('The outputs in {} do not exist, the inner component {} will be run'.format(outpath, self.component.name))
+            asyncio.ensure_future(self.component(), loop=self.dag.loop)
+            await asyncio.sleep(0)
+        else:
+            self.log.warning(
+                'The outputs in {} already exist, the inner component {} will be skipped'.format(outpath,
+                                                                                            self.component.name))
+            await asyncio.sleep(0)
+            pass
+
+
+
+
+
