@@ -27,9 +27,9 @@ class GeneratorSource(Component):
     @log_schedule
     async def __call__(self):
         gen = await self.inputs.gen.receive()
-        async with self.outputs.OUT:
+        async with self.outputs.OUT as outp:
             for g in gen:
-                await asyncio.wait(self.send_to_all(g))
+                await outp.send(g)
                 await asyncio.sleep(0)
 
 class FormatString(Component):
