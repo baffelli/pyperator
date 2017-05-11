@@ -30,7 +30,7 @@ class GeneratorSource(Component):
         async with self.outputs.OUT:
             for g in gen:
                 await asyncio.wait(self.send_to_all(g))
-                # await asyncio.sleep(0)
+                await asyncio.sleep(0)
 
 class FormatString(Component):
     """
