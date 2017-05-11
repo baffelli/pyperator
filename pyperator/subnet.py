@@ -101,8 +101,11 @@ class Subnet(Component):
         self.log.info("Component {} is a subnet, it will add its nodes to the"
                       " current executor.".format(self.name))
         for node in self.subgraph.iternodes():
-            task = self.dag.loop.create_task(node())
+            task = asyncio.ensure_future(node(),loop=self.dag.loop)
             node.task = task
+            await asyncio.sleep(0)
+
+
 
 
 
