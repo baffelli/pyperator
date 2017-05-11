@@ -368,7 +368,6 @@ class OutputPort(PortInterface):
 
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        print(self)
         await self.close()
 
 
