@@ -287,6 +287,10 @@ class PortInterface(metaclass=_abc.ABCMeta):
         except:
             self.set_initial_packet(other)
 
+
+    def __irshift__(self, other):
+        self.connect_with_repeat(other)
+
     def __aiter__(self):
         return self
 
@@ -314,6 +318,14 @@ class OutputPort(PortInterface):
     def connect(self, other, size=-1):
         new_conn = Connection()
         new_conn.connect(self, other, size=size)
+
+    def connect_with_repeat(self, other, size=-1):
+        import pyperator.components
+        rep = pyperator.components.Repeat(self.name +
+                                          "_repeat_"+ other.name)
+        self.component.dag.add_node(rep)
+        self.connect(rep.inputs.IN)
+        rep.outputs.OUT.connect(other)
 
     def open_downstream(self):
         return all([c.open_downstream() for c in self.connections])
@@ -356,6 +368,7 @@ class OutputPort(PortInterface):
 
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        print(self)
         await self.close()
 
 
@@ -429,6 +442,9 @@ class InputPort(PortInterface):
             self.log.debug("Closing {}".format(self.name))
         else:
             self.log.debug("{} is already closed".format(self.name))
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
 
 
 
